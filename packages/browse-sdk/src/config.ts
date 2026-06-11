@@ -104,7 +104,7 @@ export const KNOWN_NETWORKS = {
     ATTESTATION_INDEX_RESOLVER: ZERO_ADDRESS,
     TRUSTED_ATTESTER_RESOLVER: ZERO_ADDRESS,
     IPFS_GATEWAY: "https://summit-ipfs.polkadot.io",
-    SCHEMA_ID: 1n,
+    SCHEMA_ID: 0n,
     COMPLIANCE_SCHEMA_ID: 0n,
     rpcs: ["wss://summit-asset-hub-rpc.polkadot.io"],
   },

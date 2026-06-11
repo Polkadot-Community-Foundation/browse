@@ -49,23 +49,39 @@ jobs:
             echo "npm_tag=" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Pack @parity/browse-sdk
+      # PCF publishes its build of the SDK under @polkadot-community-foundation. Keep the
+      # @parity/browse-sdk name in-tree (the app references it everywhere) and rescope-at-pack:
+      # the script stages a @polkadot-community-foundation/browse-sdk tarball into pack-output/.
+      - name: Stage @polkadot-community-foundation/browse-sdk tarball (rescope-at-pack)
         working-directory: packages/browse-sdk
-        run: npm pack
+        run: node scripts/rescope-pack.mjs
 
       - uses: actions/upload-artifact@v4
         with:
-          name: browse-sdk
-          path: packages/browse-sdk/*.tgz
+          name: packages
+          path: packages/browse-sdk/pack-output/*.tgz
 
-      # @parity/* packages publish via paritytech/npm_publish_automation,
-      # which holds the org-scoped npm credentials. We just hand it the
-      # packed tarball; it does the `npm publish` from there.
-      - name: Dispatch to npm_publish_automation
-        uses: octokit/request-action@v2.x
+      # Publish via PCF's own npm-publish-automation (holds the @polkadot-community-foundation
+      # npm token), NOT paritytech's. Dispatch is inlined (public create-github-app-token + a
+      # gh api call) rather than the automation's composite action, because sharing a PRIVATE
+      # repo's actions cross-repo is plan-gated. npm_tag carries the rc/latest dist-tag.
+      - name: Mint App token (dispatch scope)
+        id: app-token
+        uses: actions/create-github-app-token@v1
         with:
-          route: POST /repos/paritytech/npm_publish_automation/actions/workflows/publish.yml/dispatches
-          ref: main
-          inputs: '${{ format(''{{ "repo": "{0}", "run_id": "{1}", "npm_tag": "{2}", "artifact_name": "browse-sdk" }}'', github.repository, github.run_id, steps.tag.outputs.npm_tag) }}'
+          app-id: ${{ secrets.PUBLISH_APP_ID }}
+          private-key: ${{ secrets.PUBLISH_APP_PRIVATE_KEY }}
+          owner: Polkadot-Community-Foundation
+          repositories: npm-publish-automation
+
+      - name: Dispatch PCF npm-publish-automation
         env:
-          GITHUB_TOKEN: ${{ secrets.NPM_PUBLISH_AUTOMATION_TOKEN }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          NPM_TAG: ${{ steps.tag.outputs.npm_tag }}
+        run: |
+          set -euo pipefail
+          printf '{"ref":"main","inputs":{"repo":"%s","run_id":"%s","artifact_name":"packages","npm_tag":"%s"}}' \
+            "${{ github.repository }}" "${{ github.run_id }}" "$NPM_TAG" \
+          | gh api -X POST \
+              /repos/Polkadot-Community-Foundation/npm-publish-automation/actions/workflows/publish.yml/dispatches \
+              --input -
