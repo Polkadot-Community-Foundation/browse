@@ -36,7 +36,7 @@ jobs:
 
       - name: Compute source hash
         id: source-hash
-        run: echo "hash=$(git ls-files app/src/ app/package.json app/vite.config.ts app/tsconfig.json app/index.html bun.lock | xargs sha256sum | sha256sum | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+        run: echo "hash=$(git ls-files app/src/ app/package.json app/vite.config.ts app/tsconfig.json app/index.html app/widget.html bun.lock | xargs sha256sum | sha256sum | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
 
       - name: Check deployment cache
         id: cache-check
@@ -76,7 +76,6 @@ jobs:
       domain: ${{ steps.final.outputs.domain }}
     steps:
       - uses: actions/checkout@v4
-        if: matrix.target.reuse-artifact != true
 
       - uses: actions/setup-node@v4
         with:
@@ -108,7 +107,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: dist
-          path: build
+          path: app/dist
 
       - uses: oven-sh/setup-bun@v2
         if: matrix.target.reuse-artifact != true
@@ -122,12 +121,11 @@ jobs:
           NETWORK_GENESIS_HASH: ${{ matrix.target.genesis }}
         run: |
           bun install --frozen-lockfile
-          bun run build:spa
-          cp -r dist/spa ../build
+          bun run build
 
       - name: Compute build hash
         id: hash
-        run: echo "hash=$(find build -type f -exec sha256sum {} \; | sort | sha256sum | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+        run: echo "hash=$(find app/dist -type f -exec sha256sum {} \; | sort | sha256sum | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
 
       - name: Check deploy cache
         id: cache
@@ -167,7 +165,10 @@ jobs:
 
       - name: Install bulletin-deploy
         if: steps.cache.outputs.cache-hit != 'true'
-        run: npm install -g bulletin-deploy
+        run: |
+          npm install -g bulletin-deploy@0.10.1-dev.0
+          mkdir -p app/node_modules
+          ln -sfn "$(npm root -g)/bulletin-deploy" app/node_modules/bulletin-deploy
 
       - name: Deploy
         id: deploy
@@ -181,7 +182,9 @@ jobs:
           command: |
             export MNEMONIC='${{ secrets.MNEMONIC }}'
             export NODE_OPTIONS='--max-old-space-size=8192'
-            bulletin-deploy 'build' '${{ steps.domain.outputs.value }}' --env '${{ matrix.target.env }}'
+            export APP_DOTNS_DOMAIN='${{ steps.domain.outputs.value }}'
+            cd app
+            bulletin-deploy dist/spa '${{ steps.domain.outputs.value }}' --env '${{ matrix.target.env }}'
 
       - name: Save deployment to cache
         if: steps.cache.outputs.cache-hit != 'true' && steps.deploy.outcome == 'success'
@@ -202,13 +205,13 @@ jobs:
           echo "domain=${DOMAIN}" >> "$GITHUB_OUTPUT"
           
       - name: Persist CID for release
-        if: matrix.target.env == 'preview' && github.ref == 'refs/heads/main' && steps.final.outputs.cid != ''
+        if: matrix.target.env == 'paseo-next-v2' && github.ref == 'refs/heads/main' && steps.final.outputs.cid != ''
         run: |
           mkdir -p .release-cid
           echo "${{ steps.final.outputs.cid }}" > .release-cid/cid
 
       - name: Cache CID by commit
-        if: matrix.target.env == 'preview' && github.ref == 'refs/heads/main' && steps.final.outputs.cid != ''
+        if: matrix.target.env == 'paseo-next-v2' && github.ref == 'refs/heads/main' && steps.final.outputs.cid != ''
         uses: actions/cache/save@v4
         with:
           path: .release-cid

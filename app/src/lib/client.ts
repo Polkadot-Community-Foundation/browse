@@ -36,6 +36,42 @@ export function ensureBrowseSdk(): Promise<BrowseSdk> {
   return sdkPromise
 }
 
+/**
+ * Drop the cached SDK and destroy the old client. Destroying propagates the
+ * disconnect through the host bridge so the host deletes its chain-connection
+ * entry. Otherwise it reuses a stale, post-background/foreground connection
+ * that never recovers.
+ */
+export function resetBrowseSdk(): void {
+  const stale = sdkPromise
+  sdkPromise = null
+  void stale
+    ?.then((sdk) => {
+      try {
+        sdk.destroy()
+      } catch {
+        // papi throws synchronously if a chainHead follow is still active
+      }
+    })
+    .catch(() => {})
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const id = setTimeout(() => reject(new Error(`RPC timeout after ${ms}ms: ${label}`)), ms)
+    promise.then(
+      (value) => {
+        clearTimeout(id)
+        resolve(value)
+      },
+      (err) => {
+        clearTimeout(id)
+        reject(err)
+      }
+    )
+  })
+}
+
 export const ensureClient = async (): Promise<PolkadotClient> =>
   (await ensureBrowseSdk()).getClient()
 
@@ -79,7 +115,23 @@ export async function reviveCall(
   _providedApi?: PaseoHubApi
 ): Promise<`0x${string}`> {
   void _providedApi
-  const sdk = await ensureBrowseSdk()
-  await rpcGate()
-  return sdk.reviveCall(contractAddress as `0x${string}`, encodedData, origin)
+  // A dry-run contract read is sub-second when healthy. If it doesn't return in
+  // RPC_TIMEOUT_MS the underlying request was almost certainly orphaned by a
+  // socket swap.
+  const RPC_TIMEOUT_MS = 8_000
+  const attempt = async () => {
+    const sdk = await ensureBrowseSdk()
+    await rpcGate()
+    return withTimeout(
+      sdk.reviveCall(contractAddress as `0x${string}`, encodedData, origin),
+      RPC_TIMEOUT_MS,
+      contractAddress
+    )
+  }
+  try {
+    return await attempt()
+  } catch {
+    resetBrowseSdk()
+    return attempt()
+  }
 }

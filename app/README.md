@@ -1,3 +1,6 @@
+> [!WARNING]
+> The following is a prototype, reference implementation, and proof-of-concept. This open source code is provided for research, experimentation, and developer education only. This code has not been audited, is actively experimental, and may contain bugs, vulnerabilities, or incomplete features. Use at your own risk.
+
 <div align="center">
 
 # Home for privacy apps.
@@ -10,9 +13,6 @@
 > Find apps on privacy platforms. Save what you love. Recommend the best.
 
 </div>
-
-> [!WARNING]
-> The following is a prototype, reference implementation, and proof-of-concept. This open source code is provided for research, experimentation, and developer education only. This code has not been audited, is actively experimental, and may contain bugs, vulnerabilities, or incomplete features. Use at your own risk.
 
 # Overview
 
@@ -49,7 +49,7 @@ Build both modalities, the Single-page Application (SPA) and the widget.
 make build
 ```
 
-Publish both modalities to the bulletin chain and list browse.dot in the Publisher registry. They
+Publish both modalities to the bulletin chain and list your domain in the Publisher registry. They
 ship together via the manifest. `MNEMONIC` is read from the repository root `.env`.
 
 ```sh

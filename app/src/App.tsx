@@ -14,11 +14,12 @@ import { Toast } from './components/toast'
 import { ToastContext } from './components/toast/context'
 import { createBookmark, deleteBookmark, readBookmarks } from './db/bookmarks'
 import { upsertLabel } from './db/labels'
+import { SELF_LABEL } from './lib/config'
 import { setupDebugConsole } from './lib/debug'
-import { SELF_LABEL } from './lib/identity'
 import { navigateToDomain } from './lib/navigate'
 import { subscribeHostTheme } from './lib/theme'
 import { useEvent } from './lib/use-event'
+import { useFlipReorder } from './lib/use-flip'
 import { LABELS_KEY, useGetAllApps, useLabelsStorage, useResolveLabel } from './state/apps/queries'
 import { type AppEntry, filterApps, type FilterMode, isFilterMode } from './state/apps/types'
 import { useGetAttestationsByContacts } from './state/attestations/queries'
@@ -45,6 +46,7 @@ export function App() {
   const deferredQuery = useDeferredValue(query)
 
   const rootRef = useRef<HTMLDivElement>(null)
+  const appListRef = useRef<HTMLDivElement>(null)
 
   const {
     data: allApps = [],
@@ -70,11 +72,11 @@ export function App() {
         name: cached?.name ?? null,
         description: cached?.description ?? 'No description',
         iconCid: cached?.iconCid ?? null,
-        hasChat: cached?.hasChat ?? false,
         contentHash: cached?.contentHash ?? null,
         isLive: cached?.contentHash != null,
         attestationCount: cached?.attestationCount ?? null,
-        hasUserAttested: cached?.hasUserAttested ?? false
+        hasUserAttested: cached?.hasUserAttested ?? false,
+        isCompliant: cached?.isCompliant ?? false
       })
     }
     for (const label of followingApps) addLabel(label)
@@ -120,7 +122,15 @@ export function App() {
         matches.push(app)
       }
     }
-    return matches
+    // The app itself (SELF_LABEL, derived from APP_DOTNS_DOMAIN) only belongs in
+    // search on an exact name match — the label or `<label>.dot` — never as a
+    // partial/substring hit.
+    const normalizedQuery = deferredQuery
+      .trim()
+      .toLowerCase()
+      .replace(/\.dot$/, '')
+    const exactSelf = normalizedQuery === SELF_LABEL
+    return exactSelf ? matches : matches.filter((app) => app.label !== SELF_LABEL)
   }, [deferredQuery, appsForFiltering, bookmarkedApps, followingApps, publishedLabels])
 
   const tryLabel = query
@@ -153,11 +163,16 @@ export function App() {
       name: resolvedApp.name,
       description: resolvedApp.description,
       iconCid: resolvedApp.iconCid,
-      hasChat: resolvedApp.hasChat,
       contentHash: resolvedApp.contentHash,
       attestationCount: resolvedApp.attestationCount,
       hasUserAttested: resolvedApp.hasUserAttested,
-      fetchedAt: Date.now()
+      isCompliant: resolvedApp.isCompliant,
+      fetchedAt: Date.now(),
+      // A resolved search result is NOT confirmed against the Publisher set, so
+      // mark it unpublished — otherwise materialize() would surface it in the
+      // All tab until the next sync prunes it. A sync flips this to true if it
+      // really is published.
+      published: false
     }).then(() => queryClient.invalidateQueries({ queryKey: LABELS_KEY }))
   }, [resolvedApp, queryClient])
 
@@ -169,10 +184,10 @@ export function App() {
       name: app.name,
       description: app.description,
       iconCid: app.iconCid,
-      hasChat: app.hasChat,
       contentHash: app.contentHash,
       attestationCount: app.attestationCount,
       hasUserAttested: app.hasUserAttested,
+      isCompliant: app.isCompliant,
       fetchedAt: Date.now()
     })
     await queryClient.invalidateQueries({ queryKey: LABELS_KEY })
@@ -313,6 +328,48 @@ export function App() {
         ? followingLoading
         : allFetching
 
+  // Sticky display order.
+  const [orderNonce, setOrderNonce] = useState(0)
+  const heroLabelRef = useRef<string | null>(null)
+  const commitOrder = useEvent((label: string) => {
+    heroLabelRef.current = label
+    setOrderNonce((n) => n + 1)
+  })
+
+  const orderSourceRef = useRef<AppEntry[]>(filtered)
+  orderSourceRef.current = filtered
+
+  const membershipKey = useMemo(
+    () =>
+      `${currentMode}:${filtered
+        .map((app) => app.label)
+        .sort()
+        .join(',')}`,
+    [currentMode, filtered]
+  )
+
+  const orderedLabels = useMemo(
+    () => orderSourceRef.current.map((app) => app.label),
+    [membershipKey, orderNonce]
+  )
+
+  // Apply the sticky order to the live entries, so counts stay optimistic while
+  // positions hold until commit.
+  const orderedFiltered = useMemo(() => {
+    const byLabel = new Map(filtered.map((app) => [app.label, app]))
+    return orderedLabels
+      .map((label) => byLabel.get(label))
+      .filter((app): app is AppEntry => app != null)
+  }, [orderedLabels, filtered])
+
+  const flipKey = useMemo(() => {
+    if (searchMatches) {
+      return `s:${searchMatches.map((app) => app.label).join(',')}:${resolvedApp?.label ?? ''}`
+    }
+    return `f:${currentMode}:${orderedFiltered.map((app) => app.label).join(',')}`
+  }, [searchMatches, resolvedApp, currentMode, orderedFiltered])
+  useFlipReorder(appListRef, flipKey, heroLabelRef)
+
   const renderCard = (app: AppEntry, i: number) => (
     <ProductCardWithAttestation
       key={app.label}
@@ -324,6 +381,7 @@ export function App() {
       onClick={navigateToDomain}
       onBookmark={handleBookmark}
       onShare={handleShare}
+      onAttestationSettled={() => commitOrder(app.label)}
     />
   )
 
@@ -366,7 +424,7 @@ export function App() {
                 />
               )}
 
-              <div class='app-list' id='app-list'>
+              <div class='app-list' id='app-list' ref={appListRef}>
                 {isLoading && filtered.length === 0 && !query ? null : emptyAll ? (
                   <div class='empty-state'>
                     <div class='empty-state__icon'>
@@ -429,7 +487,7 @@ export function App() {
                     </div>
                   )
                 ) : (
-                  filtered.map(renderCard)
+                  orderedFiltered.map(renderCard)
                 )}
               </div>
 
