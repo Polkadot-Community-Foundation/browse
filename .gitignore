@@ -43,3 +43,6 @@ app/tests/results/
 
 # Lychee link-check cache
 .lycheecache
+
+# PCF rescope-at-publish staging output
+packages/browse-sdk/pack-output/
