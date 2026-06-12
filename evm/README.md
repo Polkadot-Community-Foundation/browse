@@ -69,6 +69,25 @@ Version 2.1.0:
   * Trusted attester: `0x35Cdb23fF7fc86E8DCcd577CA309bFEA9c978D20`
   * Deployment and ABI: [TrustedAttesterIndexResolver.sol](src/TrustedAttesterIndexResolver.sol)
 
+### Summit
+
+#### Summit Asset Hub
+
+Genesis `0xf388dc6d6cdf6fb77eac3c4a91f31bc0c8642b142f1a757512ab7849f9f70660`.
+
+Version 2.1.0:
+
+* **Publisher**:
+  * Contract: `0xf5fe0fc9f4c13dfd3a4a8abd27e64eb652157494`
+  * Deployment and ABI: [Publisher.sol](src/Publisher.sol)
+* **RecipientAndAttesterIndexResolver**:
+  * Contract: `0xa2ea4ab49bbe73f466f2fa0aeb50b39d34b55218`
+  * Deployment and ABI: [RecipientAndAttesterIndexResolver.sol](src/RecipientAndAttesterIndexResolver.sol)
+* **TrustedAttesterIndexResolver**:
+  * Contract: `0xde4a63079034230d71b5a5071571ed3fd95194e0`
+  * Trusted attester: `0xeB686805D91dB3637258d0d21DefC06d0dA3a8C9`
+  * Deployment and ABI: [TrustedAttesterIndexResolver.sol](src/TrustedAttesterIndexResolver.sol)
+
 ## Testing
 
 Install [Foundry](https://paritytech.github.io/foundry-book-polkadot/) and the script dependencies,

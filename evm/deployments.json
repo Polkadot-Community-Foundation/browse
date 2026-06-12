@@ -20,6 +20,16 @@
       "genesisHash": "0xbf0488dbe9daa1de1c08c5f743e26fdc2a4ecd74cf87dd1b4b1eeb99ae4ef19f",
       "substrateRpc": "wss://paseo-asset-hub-next-rpc.polkadot.io",
       "deployedAt": "2026-06-05T13:45:21Z"
+    },
+    "summit-asset-hub": {
+      "address": "0xf5fe0fc9f4c13dfd3a4a8abd27e64eb652157494",
+      "version": "2.1.0",
+      "registrar": "0xf3969bCBE60463302306663C62A6A8ef91ab9aA5",
+      "deployer": "5Fk8FBTqBpAyBReZPse2wn8Lf4ADzdNVAsrGoNMSTxKedN8f",
+      "network": "summit-asset-hub",
+      "genesisHash": "0xf388dc6d6cdf6fb77eac3c4a91f31bc0c8642b142f1a757512ab7849f9f70660",
+      "substrateRpc": "wss://summit-asset-hub-rpc.polkadot.io",
+      "deployedAt": "2026-06-12"
     }
   },
   "trustedAttesterIndexResolver": {
@@ -44,6 +54,17 @@
       "network": "paseo-asset-hub-next-v2",
       "genesisHash": "0xbf0488dbe9daa1de1c08c5f743e26fdc2a4ecd74cf87dd1b4b1eeb99ae4ef19f",
       "deployedAt": "2026-06-08T14:35:14Z"
+    },
+    "summit-asset-hub": {
+      "address": "0xde4a63079034230d71b5a5071571ed3fd95194e0",
+      "attestationService": "0x40c48a58cdc2797f21325269c4422e717e6510e5",
+      "trustedAttester": "0xeB686805D91dB3637258d0d21DefC06d0dA3a8C9",
+      "schema": "bool compliant",
+      "schemaId": 2,
+      "deployer": "5Fk8FBTqBpAyBReZPse2wn8Lf4ADzdNVAsrGoNMSTxKedN8f",
+      "network": "summit-asset-hub",
+      "genesisHash": "0xf388dc6d6cdf6fb77eac3c4a91f31bc0c8642b142f1a757512ab7849f9f70660",
+      "deployedAt": "2026-06-12"
     }
   }
 }
