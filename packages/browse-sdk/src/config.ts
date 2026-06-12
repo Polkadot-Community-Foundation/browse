@@ -30,8 +30,6 @@ export interface NetworkConfig extends NetworkAddresses {
   rpcs: readonly string[];
 }
 
-const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
-
 export const PASEO_ASSET_HUB_NEXT_V2_GENESIS =
   "0xbf0488dbe9daa1de1c08c5f743e26fdc2a4ecd74cf87dd1b4b1eeb99ae4ef19f" as const;
 
