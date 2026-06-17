@@ -169,29 +169,25 @@ export async function getAttestationId(label: string): Promise<bigint | null> {
   return idx === -1 ? null : ids[idx]
 }
 
-// The count badge and filled state update optimistically on click for instant
-// feedback. The list's count-based *order*, however, is held steady by the UI
-// until the chain confirms (see the sticky ordering in App), so the card glides
-// to its new rank only once the confirmation toast fires — never on click.
 export function useAttestProduct() {
   const queryClient = useQueryClient()
-  return useMutation<unknown, Error, string, MutationCtx>({
-    mutationFn: (label) => attestLabel(label),
-    onMutate: (label) => {
-      const ctx = snapshot(queryClient, label)
-      queryClient.setQueryData<AppEntry[]>(ALL_KEY, (prev) => updateApp(prev, label, attestPatch))
-      queryClient.setQueryData<AttestationQueryData>(attestationKey(label), (prev) =>
-        prev
-          ? { attestationCount: prev.attestationCount + 1, hasUserAttested: true }
-          : { attestationCount: 1, hasUserAttested: true }
-      )
-      patchLabels(queryClient, label, 1, true)
-      return ctx
-    },
-    onError: (_err, label, ctx) => {
+  return useMutation<unknown, Error, { label: string; onBroadcast?: () => void }, MutationCtx>({
+    onMutate: ({ label }) => snapshot(queryClient, label),
+    mutationFn: ({ label, onBroadcast }) =>
+      attestLabel(label, () => {
+        queryClient.setQueryData<AppEntry[]>(ALL_KEY, (prev) => updateApp(prev, label, attestPatch))
+        queryClient.setQueryData<AttestationQueryData>(attestationKey(label), (prev) =>
+          prev
+            ? { attestationCount: prev.attestationCount + 1, hasUserAttested: true }
+            : { attestationCount: 1, hasUserAttested: true }
+        )
+        patchLabels(queryClient, label, 1, true)
+        onBroadcast?.()
+      }),
+    onError: (_err, { label }, ctx) => {
       if (ctx) rollback(queryClient, label, ctx)
     },
-    onSuccess: (_data, label) => {
+    onSuccess: (_data, { label }) => {
       void updateAttestationCount(label, 1, true)
     }
   })
@@ -199,23 +195,23 @@ export function useAttestProduct() {
 
 export function useRevokeApp() {
   const queryClient = useQueryClient()
-  return useMutation<unknown, Error, string, MutationCtx>({
-    mutationFn: (label) => revokeLabel(label),
-    onMutate: (label) => {
-      const ctx = snapshot(queryClient, label)
-      queryClient.setQueryData<AppEntry[]>(ALL_KEY, (prev) => updateApp(prev, label, revokePatch))
-      queryClient.setQueryData<AttestationQueryData>(attestationKey(label), (prev) =>
-        prev
-          ? { attestationCount: Math.max(0, prev.attestationCount - 1), hasUserAttested: false }
-          : { attestationCount: 0, hasUserAttested: false }
-      )
-      patchLabels(queryClient, label, -1, false)
-      return ctx
-    },
-    onError: (_err, label, ctx) => {
+  return useMutation<unknown, Error, { label: string; onBroadcast?: () => void }, MutationCtx>({
+    onMutate: ({ label }) => snapshot(queryClient, label),
+    mutationFn: ({ label, onBroadcast }) =>
+      revokeLabel(label, () => {
+        queryClient.setQueryData<AppEntry[]>(ALL_KEY, (prev) => updateApp(prev, label, revokePatch))
+        queryClient.setQueryData<AttestationQueryData>(attestationKey(label), (prev) =>
+          prev
+            ? { attestationCount: Math.max(0, prev.attestationCount - 1), hasUserAttested: false }
+            : { attestationCount: 0, hasUserAttested: false }
+        )
+        patchLabels(queryClient, label, -1, false)
+        onBroadcast?.()
+      }),
+    onError: (_err, { label }, ctx) => {
       if (ctx) rollback(queryClient, label, ctx)
     },
-    onSuccess: (_data, label) => {
+    onSuccess: (_data, { label }) => {
       void updateAttestationCount(label, -1, false)
     }
   })
