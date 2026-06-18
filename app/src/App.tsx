@@ -15,6 +15,7 @@ import { Toast } from './components/toast'
 import { ToastContext } from './components/toast/context'
 import { createBookmark, deleteBookmark, readBookmarks } from './db/bookmarks'
 import { upsertLabel } from './db/labels'
+import { resetBrowseSdk } from './lib/client'
 import { SELF_LABEL } from './lib/config'
 import { setupDebugConsole } from './lib/debug'
 import { navigateToDomain } from './lib/navigate'
@@ -34,6 +35,10 @@ import { useGetAttestationsByContacts } from './state/attestations/queries'
 import { addContact, type ContactEntry, getContacts, removeContact } from './state/contacts/api'
 
 const SEARCH_GROUP_PRIORITY: FilterMode[] = ['bookmarks', 'following', 'all']
+
+// Minimum time the loading dots stay up after a mobile pull-refresh, so the
+// gesture has visible feedback even when the connection reset resolves instantly.
+const PULL_REFRESH_MIN_VISIBLE_MS = 2000
 
 export function App() {
   const queryClient = useQueryClient()
@@ -232,10 +237,17 @@ export function App() {
       if (app) void persistLabelFromApp(app)
     }
   })
-  const showToast = useEvent((message: string, isError = false) => {
-    setToastIsError(isError)
-    setToastMessage(message)
-  })
+  const showToast = useEvent(
+    (
+      message: string,
+      isError = false,
+      action: { label: string; onClick: () => void } | null = null
+    ) => {
+      setToastIsError(isError)
+      setToastAction(action)
+      setToastMessage(message)
+    }
+  )
 
   const handleAddContact = useEvent((address: string, username?: string) => {
     addContact(address, username)
@@ -280,9 +292,38 @@ export function App() {
 
   useEffect(() => subscribeHostTheme(), [])
 
-  // Surface a network failure as a toast.
+  // Touch devices get a minimum-visible hold on the dots after a pull-refresh
+  const isTouchDevice = useMemo(
+    () => !window.matchMedia?.('(hover: hover) and (pointer: fine)').matches,
+    []
+  )
+  const [pullRefreshFloor, setPullRefreshFloor] = useState(false)
+  const pullFloorTimer = useRef<ReturnType<typeof setTimeout>>()
+  useEffect(() => () => clearTimeout(pullFloorTimer.current), [])
+
+  // Completely re-establish the chain connection: drop the cached SDK (destroys
+  // the papi client + chain socket) so the next query rebuilds a fresh
+  // connection, then refetch. Driven by the overscroll-at-bottom gesture. On
+  // touch, hold the loading dots for a minimum window so the pull always reads
+  // as feedback even if the reset resolves instantly.
+  const refreshConnection = useEvent(() => {
+    resetBrowseSdk()
+    if (isTouchDevice) {
+      clearTimeout(pullFloorTimer.current)
+      setPullRefreshFloor(true)
+      pullFloorTimer.current = setTimeout(
+        () => setPullRefreshFloor(false),
+        PULL_REFRESH_MIN_VISIBLE_MS
+      )
+    }
+    void queryClient.invalidateQueries({ queryKey: ALL_APPS_KEY })
+  })
+
+  // Surface a network failure as a (non-error) toast.
   useEffect(() => {
-    if (allError) showToast('Network not supported', true)
+    if (allError) {
+      showToast('Network connection failed')
+    }
   }, [allError, showToast])
 
   // Load bookmarks and contacts on mount
@@ -329,13 +370,14 @@ export function App() {
         ? followingLoading
         : allFetching
 
-  // Pushing past the end of the list re-checks the published set for new/removed
-  // apps. Disabled while a sync runs, while searching, or on the local bookmarks
-  // tab.
-  const refreshAllApps = useEvent(() => {
-    queryClient.invalidateQueries({ queryKey: ALL_APPS_KEY })
-  })
-  useOverscrollSync(refreshAllApps, allFetching || !!query || currentMode === 'bookmarks')
+  // Pushing past the end of the list fully re-establishes the chain connection
+  // (resetBrowseSdk) and re-syncs. Disabled while a sync runs, while searching,
+  // or on the local bookmarks tab.
+  useOverscrollSync(refreshConnection, allFetching || !!query || currentMode === 'bookmarks')
+
+  // Loading dots track the live sync. A mobile pull-refresh additionally holds
+  // them for a minimum window so the gesture doesn't flash.
+  const showSyncDots = (isLoading && !query && filtered.length > 0) || pullRefreshFloor
 
   // Showing skeletons.
   const coldStart = isLoading && filtered.length === 0 && !query
@@ -509,7 +551,7 @@ export function App() {
               <div
                 class='loading-dots'
                 id='loading-dots'
-                style={{ display: isLoading && !query && filtered.length > 0 ? 'flex' : 'none' }}
+                style={{ display: showSyncDots ? 'flex' : 'none' }}
               >
                 <span class='loading-dots__dot' />
                 <span class='loading-dots__dot' />
