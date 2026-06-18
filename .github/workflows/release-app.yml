@@ -19,13 +19,11 @@ jobs:
     runs-on: ubuntu-latest
     env:
       APP_DOTNS_DOMAIN: ${{ secrets.APP_DOTNS_DOMAIN }}
-      DOTNS_CLI_RELEASE_ENVIRONMENT: ${{ secrets.DOTNS_CLI_RELEASE_ENVIRONMENT }}
       DOTNS_MNEMONIC: ${{ secrets.MNEMONIC }}
     steps:
       - name: Verify required secrets
         run: |
           if [ -z "$APP_DOTNS_DOMAIN" ]; then echo "::error::Required secret APP_DOTNS_DOMAIN is not set"; exit 1; fi
-          if [ -z "$DOTNS_CLI_RELEASE_ENVIRONMENT" ]; then echo "::error::Required secret DOTNS_CLI_RELEASE_ENVIRONMENT is not set"; exit 1; fi
           if [ -z "$DOTNS_MNEMONIC" ]; then echo "::error::Required secret MNEMONIC is not set"; exit 1; fi
 
       - name: Resolve version
@@ -60,11 +58,11 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Install dotns CLI
-        run: npm install -g @parity/dotns-cli
+      - name: Install dotns CLI (PCF fork)
+        run: npm install -g @polkadot-community-foundation/dotns-cli@0.7.2
 
       - name: Point domain at the released CID
-        run: dotns content set "$APP_DOTNS_DOMAIN" "${{ steps.cid.outputs.cid }}" --env "$DOTNS_CLI_RELEASE_ENVIRONMENT"
+        run: dotns content set "$APP_DOTNS_DOMAIN" "${{ steps.cid.outputs.cid }}" --env summit
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
@@ -80,7 +78,7 @@ jobs:
             |---|---|
             | Version | `${{ steps.ver.outputs.version }}` |
             | CID | `${{ steps.cid.outputs.cid }}` |
-            | Domain | `${{ env.APP_DOTNS_DOMAIN }}-beta00.dot` |
-            | Browser | https://${{ env.APP_DOTNS_DOMAIN }}-beta00.paseo.li |
+            | Domain | `${{ env.APP_DOTNS_DOMAIN }}.dot` |
+            | Browser | https://${{ env.APP_DOTNS_DOMAIN }}.dot.li |
 
             To roll back, re-run `dotns content set` with a prior release CID.
