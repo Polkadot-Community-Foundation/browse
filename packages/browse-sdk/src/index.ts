@@ -16,13 +16,16 @@
 export { BrowseSdk, createBrowseSdk } from './sdk.js'
 
 export {
+  activeAttestationResolver,
+  activeSchemaId,
+  attestationVersions,
   isKnownGenesis,
   KNOWN_NETWORKS,
-  PASEO_ASSET_HUB_NEXT_V2_GENESIS,
-  PREVIEWNET_ASSET_HUB_GENESIS,
+  PASEO_ASSETHUB_NEXT_V2_GENESIS,
+  PREVIEWNET_ASSETHUB_GENESIS,
   publisherReadAddresses,
   selectNetwork,
-  SUMMIT_ASSET_HUB_GENESIS
+  SUMMIT_ASSETHUB_GENESIS
 } from './config.js'
 export type { NetworkConfig, NetworkGenesis } from './config.js'
 
@@ -39,9 +42,11 @@ export type {
 } from './types.js'
 
 export {
+  trustedAttestationId,
   decodeAddress,
   decodeAddressArray,
   decodeAggregate3Result,
+  decodeAttestation,
   decodeAttestationLabel,
   decodeBool,
   decodeBytes,
@@ -54,9 +59,11 @@ export {
   encodeAttestationLabel,
   encodeContenthash,
   encodeCountByRecipientAndSchema,
+  encodeGetAttestationById,
   encodeGetLabels,
   encodeGetLabelStores,
   encodeGetPublished,
+  encodeIdentityHasAttested,
   encodeIsActive,
   encodeIsActiveAny,
   encodeLabelOf,
@@ -69,4 +76,4 @@ export {
   nodeToSubject,
   tryDecode
 } from './abi/index.js'
-export type { AggregateResult, MulticallTarget } from './abi/index.js'
+export type { AggregateResult, DecodedAttestation, MulticallTarget } from './abi/index.js'

@@ -18,12 +18,15 @@
   animation: none;
 }
 
-.product-card:hover {
-  background: var(--bg-selection-container-hover);
-}
+@media (hover: hover) {
+  .product-card:hover {
+    background: var(--bg-selection-container-hover);
+  }
 
-.product-card:active {
-  background: var(--bg-selection-container-active);
+  /* Pointer-only. On touch this fill sticks after a tap navigates away. */
+  .product-card:active {
+    background: var(--bg-selection-container-active);
+  }
 }
 
 @keyframes productCardIn {
@@ -87,6 +90,14 @@
   gap: 6px;
 }
 
+/* Title and description, stacked. Keeps the body's 6px gap so mobile is
+   unchanged. */
+.product-card__text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-extra-small);
+}
+
 .product-card__title-row {
   display: flex;
   align-items: center;
@@ -110,7 +121,11 @@
   align-items: center;
   flex-shrink: 0;
   margin-left: var(--space-tiny);
+  padding: 0;
+  background: none;
+  border: none;
   color: var(--fg-primary);
+  cursor: pointer;
 }
 
 .product-card__certified svg {
@@ -142,9 +157,11 @@
     color 150ms ease;
 }
 
-.product-card__bookmark:hover {
-  background: var(--surface-3);
-  color: rgb(var(--fg-rgb) / 0.9);
+@media (hover: hover) {
+  .product-card__bookmark:hover {
+    background: var(--surface-3);
+    color: rgb(var(--fg-rgb) / 0.9);
+  }
 }
 
 .product-card__bookmark--active {
@@ -202,9 +219,11 @@
     transform 150ms ease;
 }
 
-.product-card__open:hover {
-  background: var(--cta-bg-hover);
-  transform: translateY(-1px);
+@media (hover: hover) {
+  .product-card__open:hover {
+    background: var(--cta-bg-hover);
+    transform: translateY(-1px);
+  }
 }
 
 .product-card__upvote {
@@ -230,10 +249,12 @@
     color 150ms ease;
 }
 
-.product-card__upvote:not(.product-card__upvote--active):hover {
-  background: var(--bg-selection-container-hover);
-  border-color: var(--stroke-tertiary);
-  color: var(--fg-primary);
+@media (hover: hover) {
+  .product-card__upvote:not(.product-card__upvote--active):hover {
+    background: var(--bg-selection-container-hover);
+    border-color: var(--stroke-tertiary);
+    color: var(--fg-primary);
+  }
 }
 
 .product-card__upvote--active {
@@ -392,9 +413,11 @@
     color 150ms ease;
 }
 
-.product-card__share:hover {
-  background: var(--surface-3);
-  color: var(--color-heading);
+@media (hover: hover) {
+  .product-card__share:hover {
+    background: var(--surface-3);
+    color: var(--color-heading);
+  }
 }
 
 .product-card--removing {
@@ -462,5 +485,96 @@
   }
   50% {
     opacity: 0.4;
+  }
+}
+
+/* Desktop overrides. Mobile (max-width 520px) is untouched. */
+@media (min-width: 768px) {
+  /* Top-align so icon, title, and Open share the top line. */
+  .product-card {
+    align-items: flex-start;
+    gap: var(--space-medium);
+    min-height: 0;
+    padding: var(--space-small) var(--space-extra-medium);
+    border-radius: var(--radius-extra-medium);
+    contain-intrinsic-size: 0 104px;
+  }
+
+  /* Bigger icon on desktop. */
+  .product-card__thumb {
+    width: 88px;
+    height: 88px;
+    border-radius: var(--radius-medium-increased);
+  }
+
+  /* 2-col grid. Open spans both rows on the right so it centers vertically. */
+  .product-card__body {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      'text open'
+      'actions open';
+    column-gap: var(--space-medium);
+    row-gap: var(--space-small);
+    align-items: start;
+    min-height: 0;
+  }
+
+  /* Title and description column. */
+  .product-card__text {
+    grid-area: text;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-extra-tiny);
+  }
+
+  .product-card__title-row {
+    min-height: 0;
+  }
+
+  /* Smaller title. min-width 0 lets it truncate. */
+  .product-card__name {
+    min-width: 0;
+    font-size: var(--type-title-md-size);
+    line-height: var(--type-title-md-line);
+    font-weight: var(--type-title-md-weight);
+  }
+
+  .product-card__desc {
+    font-size: var(--type-body-sm-size);
+    line-height: var(--type-body-sm-line);
+  }
+
+  /* Smaller bookmark on desktop. */
+  .product-card__title-row .product-card__bookmark {
+    width: 28px;
+    height: 28px;
+    margin-left: var(--space-tiny);
+    border-radius: var(--radius-small);
+  }
+
+  /* Unwrap so Open and the buttons place into the grid independently. */
+  .product-card__footer {
+    display: contents;
+  }
+
+  /* Recommend and share, below the description. */
+  .product-card__footer-end {
+    grid-area: actions;
+    margin-left: 0;
+    gap: var(--space-extra-small);
+  }
+
+  /* Open on the right, vertically centered. */
+  .product-card__open {
+    grid-area: open;
+    align-self: center;
+    height: 36px;
+    padding: 0 var(--space-medium-increased);
+  }
+
+  .product-card__upvote {
+    height: 32px;
   }
 }

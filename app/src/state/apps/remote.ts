@@ -6,11 +6,14 @@
  */
 
 import { keccak_256 } from '@noble/hashes/sha3.js'
-import { publisherReadAddresses } from '@parity/browse-sdk'
+import { attestationVersions, publisherReadAddresses } from '@parity/browse-sdk'
+import { toHex } from 'viem'
 
 import { parseRootManifest } from './manifest'
+import type { AppCertificate } from './types'
 import type { LabelEntry } from '../../db/labels'
 import {
+  decodeAttestation,
   decodeBool,
   decodeBytes,
   decodeBytes32Array,
@@ -19,15 +22,16 @@ import {
   decodeUint64,
   encodeContenthash,
   encodeCountByRecipientAndSchema,
+  encodeGetAttestationById,
   encodeGetPublished,
-  encodeIsActive,
-  encodeIsActiveAny,
+  encodeIdentityHasAttested,
   encodeLabelOf,
   encodeText,
   labelhashToTokenId,
   type MulticallTarget,
   namehash,
-  nodeToSubject
+  nodeToSubject,
+  trustedAttestationId
 } from '../../lib/abi'
 import { reviveCall } from '../../lib/client'
 import { NETWORK } from '../../lib/config'
@@ -143,16 +147,17 @@ export async function resolveLabels(
 }
 
 /**
- * Hydrate a chunk of labels with content + attestation metadata.
+ * Hydrate a chunk of labels with content and attestation metadata.
  *
  * Two-pass: first batch fetches `contenthash` to identify live labels, the
- * second batch fetches `name`/`description`/attestation count (plus a per-user
- * "have I attested?" probe when `userH160` is provided). Non-live labels come
- * back with `contentHash: null`. Caller chunks input to {@link HYDRATE_CHUNK_SIZE}.
+ * second batch fetches `name`/`description`/attestation count. When
+ * `identityH160` is provided, it also runs a per-user "have I attested?" probe.
+ * Non-live labels come back with `contentHash: null`. Caller chunks input to
+ * {@link HYDRATE_CHUNK_SIZE}.
  */
 export async function hydrateLabelChunk(
   chunk: string[],
-  userH160: `0x${string}` | null
+  identityH160: `0x${string}` | null
 ): Promise<LabelEntry[]> {
   const chCalls: MulticallTarget[] = chunk.map((label) => ({
     target: NETWORK.CONTENT_RESOLVER,
@@ -171,31 +176,44 @@ export async function hydrateLabelChunk(
     if (contentHashes[chunkIndex]) liveIndexes.push(chunkIndex)
   }
 
-  // Per live label: manifest, like count, compliance attestation, and (when
-  // signed in) the per-user "have I liked this?" probe.
-  const callsPerLive = userH160 ? 4 : 3
+  const versions = attestationVersions(NETWORK)
+  // When a trusted attester is configured, each label fetches its compliance
+  // attestation. An active record (not revoked, not expired) marks the app
+  // certified, so no separate `isActive` call is needed.
+  const trustedAttester = NETWORK.TRUSTED_ATTESTER
+  const perLive =
+    1 + versions.length + (trustedAttester ? 1 : 0) + (identityH160 ? versions.length : 0)
   let metaResults: Awaited<ReturnType<typeof multicall>> = []
   if (liveIndexes.length > 0) {
     const metaCalls: MulticallTarget[] = []
     for (const chunkIndex of liveIndexes) {
       const node = namehash(`${chunk[chunkIndex]}.dot`)
       const subject = nodeToSubject(node)
-      metaCalls.push(
-        { target: NETWORK.CONTENT_RESOLVER, callData: encodeText(node, 'manifest') },
-        {
-          target: NETWORK.ATTESTATION_INDEX_RESOLVER,
-          callData: encodeCountByRecipientAndSchema(subject, NETWORK.SCHEMA_ID)
-        },
-        {
-          target: NETWORK.TRUSTED_ATTESTER_RESOLVER,
-          callData: encodeIsActive(subject, NETWORK.COMPLIANCE_SCHEMA_ID)
-        }
-      )
-      if (userH160) {
+      metaCalls.push({ target: NETWORK.CONTENT_RESOLVER, callData: encodeText(node, 'manifest') })
+      for (const { resolver, schemaId } of versions) {
         metaCalls.push({
-          target: NETWORK.ATTESTATION_INDEX_RESOLVER,
-          callData: encodeIsActiveAny(subject, NETWORK.SCHEMA_ID, [userH160])
+          target: resolver,
+          callData: encodeCountByRecipientAndSchema(subject, schemaId)
         })
+      }
+      if (trustedAttester) {
+        const attestationId = trustedAttestationId(
+          trustedAttester,
+          subject,
+          NETWORK.COMPLIANCE_SCHEMA_ID
+        )
+        metaCalls.push({
+          target: NETWORK.ATTESTATION_SERVICE,
+          callData: encodeGetAttestationById(attestationId)
+        })
+      }
+      if (identityH160) {
+        for (const { resolver, schemaId } of versions) {
+          metaCalls.push({
+            target: resolver,
+            callData: encodeIdentityHasAttested(subject, schemaId, identityH160)
+          })
+        }
       }
     }
     hiddenLog(
@@ -205,6 +223,7 @@ export async function hydrateLabelChunk(
   }
 
   const fetchedAt = Date.now()
+  const now = BigInt(Math.floor(fetchedAt / 1000))
   const out: LabelEntry[] = []
   let metaIdx = 0
   for (let chunkIndex = 0; chunkIndex < chunk.length; chunkIndex++) {
@@ -213,10 +232,10 @@ export async function hydrateLabelChunk(
     let description = 'No description'
     let iconCid: string | null = null
     let attestationCount: number | null = null
-    let isCompliant = false
+    let certificate: AppCertificate | null = null
     let hasUserAttested = false
     if (cid) {
-      const base = metaIdx * callsPerLive
+      const base = metaIdx * perLive
       const manifestRaw = tryDecode(metaResults[base], decodeString) ?? ''
       const manifest = parseRootManifest(manifestRaw)
       if (manifest) {
@@ -224,9 +243,43 @@ export async function hydrateLabelChunk(
         description = manifest.description || 'No description'
         iconCid = manifest.icon.cid
       }
-      attestationCount = tryDecode(metaResults[base + 1], decodeUint64)
-      isCompliant = tryDecode(metaResults[base + 2], decodeBool) ?? false
-      hasUserAttested = userH160 ? (tryDecode(metaResults[base + 3], decodeBool) ?? false) : false
+      let countTotal = 0
+      let hasCount = false
+      for (let v = 0; v < versions.length; v++) {
+        const c = tryDecode(metaResults[base + 1 + v], decodeUint64)
+        if (c !== null) {
+          countTotal += c
+          hasCount = true
+        }
+      }
+      attestationCount = hasCount ? countTotal : null
+      // The `getAttestationById` slot follows the counts only when a trusted
+      // attester is configured, so `identityHasAttested` starts one later.
+      const certBase = base + 1 + versions.length
+      if (trustedAttester) {
+        const decoded = tryDecode(metaResults[certBase], decodeAttestation)
+        // Keep only an active attestation (not revoked, not expired). Its
+        // presence is what marks the app certified.
+        const active =
+          decoded !== null &&
+          decoded.revocationTime === 0n &&
+          (decoded.expirationTime === 0n || decoded.expirationTime > now)
+        if (decoded && active) {
+          certificate = {
+            id: toHex(decoded.id, { size: 32 }),
+            attester: decoded.attester,
+            issuedAt: Number(decoded.time),
+            expiresAt: Number(decoded.expirationTime),
+            cid: decoded.cid
+          }
+        }
+      }
+      if (identityH160) {
+        const anyBase = certBase + (trustedAttester ? 1 : 0)
+        hasUserAttested = versions.some(
+          (_, v) => tryDecode(metaResults[anyBase + v], decodeBool) === true
+        )
+      }
       metaIdx++
     }
     out.push({
@@ -236,7 +289,7 @@ export async function hydrateLabelChunk(
       iconCid,
       contentHash: cid,
       attestationCount,
-      isCompliant,
+      certificate,
       hasUserAttested,
       fetchedAt
     })

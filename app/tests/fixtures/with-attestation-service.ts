@@ -1,32 +1,23 @@
-import {
-  PASEO_ASSET_HUB_NEXT_V2_GENESIS,
-  PREVIEWNET_ASSET_HUB_GENESIS,
-  SUMMIT_ASSET_HUB_GENESIS
-} from '@parity/browse-sdk'
-import { paseohub, previewnethub, summithub } from '@polkadot-api/descriptors'
 import { createClient } from 'polkadot-api'
 import { getWsProvider } from 'polkadot-api/ws'
 import { WebSocket } from 'ws'
 
-import { createDevSigner } from './fund'
+import { createProductSigner, ensureFunderPgas } from './fund'
 import { AttestationService } from '../../src/lib/attestation-service'
-import { ASSET_HUB_GENESIS, NETWORK } from '../../src/lib/config'
+import { NETWORK } from '../../src/lib/config'
 
-const RPC_ENDPOINTS = [...NETWORK.rpcs]
+const RPC_ENDPOINTS = [...NETWORK.ASSETHUB_RPCS]
 
-// Match the chain descriptor to the active network (see client.ts).
-const descriptor = ({
-  [PASEO_ASSET_HUB_NEXT_V2_GENESIS]: paseohub,
-  [PREVIEWNET_ASSET_HUB_GENESIS]: previewnethub,
-  [SUMMIT_ASSET_HUB_GENESIS]: summithub
-}[ASSET_HUB_GENESIS] ?? paseohub) as typeof paseohub
+type Credentials = ReturnType<typeof createProductSigner>
 
-export async function withAttestationService<T>(
-  devAccount: string,
+export async function withSigner<T>(
+  { signer, address, publicKey }: Credentials,
   fn: (service: AttestationService, address: string) => Promise<T>
 ): Promise<T> {
-  const { signer, address, publicKey } = createDevSigner(devAccount)
-
+  // Keep the shared funder in PGAS. Only the funder self-claims. Other signers,
+  // such as a freshly-seeded product account, are funded by transfer and must
+  // not burn the identity daily claim slots.
+  if (address === createProductSigner().address) await ensureFunderPgas()
   const client = createClient(
     getWsProvider(RPC_ENDPOINTS, {
       websocketClass: WebSocket as unknown as typeof globalThis.WebSocket
@@ -34,9 +25,7 @@ export async function withAttestationService<T>(
   )
 
   try {
-    const api = client.getTypedApi(descriptor)
     const service = new AttestationService(
-      async () => api,
       async () => client,
       async () => ({ signer, origin: address, publicKey }),
       false
@@ -44,11 +33,18 @@ export async function withAttestationService<T>(
     return await fn(service, address)
   } finally {
     // papi 2.x throws a synchronous DisjointError if a chainHead follow is
-    // still active when the client is destroyed; harmless during teardown.
+    // still active when the client is destroyed. Harmless during teardown.
     try {
       client.destroy()
     } catch {
       // ignore
     }
   }
+}
+
+/** Run `fn` with a service signed by the bound product account (see {@link createProductSigner}). */
+export function withAttestationService<T>(
+  fn: (service: AttestationService, address: string) => Promise<T>
+): Promise<T> {
+  return withSigner(createProductSigner(), fn)
 }

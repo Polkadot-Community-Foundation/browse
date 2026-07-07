@@ -3,7 +3,11 @@ import { useState } from 'preact/hooks'
 import { ProductCard } from './index'
 import { useEvent } from '../../lib/use-event'
 import { type AppEntry } from '../../state/apps/types'
-import { describeError, useAttestProduct, useRevokeApp } from '../../state/attestations/mutations'
+import {
+  describeError,
+  useAttestProduct,
+  useRevokeApp
+} from '../../state/recommendations/mutations'
 import { useToast } from '../toast/context'
 
 interface ProductCardWithAttestationProps {
@@ -16,6 +20,7 @@ interface ProductCardWithAttestationProps {
   onBookmark: (label: string) => void
   onShare: (app: AppEntry) => void
   onAttestationSettled?: () => void
+  onClickCertificate?: () => void
 }
 
 export function ProductCardWithAttestation({
@@ -27,7 +32,8 @@ export function ProductCardWithAttestation({
   onClick,
   onBookmark,
   onShare,
-  onAttestationSettled
+  onAttestationSettled,
+  onClickCertificate
 }: ProductCardWithAttestationProps) {
   const attestProduct = useAttestProduct()
   const revokeApp = useRevokeApp()
@@ -87,6 +93,7 @@ export function ProductCardWithAttestation({
       onBookmark={onBookmark}
       onShare={onShare}
       onClickAttestation={handleAttestation}
+      onClickCertificate={onClickCertificate}
     />
   )
 }

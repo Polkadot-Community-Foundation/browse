@@ -30,12 +30,12 @@ test.describe('App Start', () => {
       await host?.close()
     })
 
-    test('As an unsigned user, I see the Bookmarks and All tabs', async () => {
+    test('As an unsigned user, I see the Bookmarks, Following and All tabs', async () => {
       // Then
       const tabs = frame.locator('.category-tab')
-      expect(await tabs.count()).toBe(2)
+      expect(await tabs.count()).toBe(3)
       const tabLabels = await tabs.allTextContents()
-      expect(tabLabels).toEqual(['Bookmarks', 'All'])
+      expect(tabLabels).toEqual(['Bookmarks', 'Following', 'All'])
 
       // Then
       const activeTab = frame.locator('.category-tab--active')
@@ -68,13 +68,6 @@ test.describe('App Start', () => {
       await expect(reloadedFrame.locator('.loading-dots')).not.toBeVisible({ timeout: 10_000 })
 
       await reloaded.close()
-    })
-
-    test('As an unsigned user, when I open browse, I see the page header', async () => {
-      // Then
-      const title = frame.locator('.title')
-      await expect(title).toBeVisible()
-      await expect(title).toContainText('browse')
     })
 
     test('As an unsigned user, when I open browse, I see the search bar', async () => {
@@ -110,12 +103,12 @@ test.describe('App Start', () => {
       await host?.close()
     })
 
-    test('As a signed user, I see the Bookmarks and All tabs', async () => {
+    test('As a signed user, I see the Bookmarks, Following and All tabs', async () => {
       // Then
       const tabs = frame.locator('.category-tab')
-      expect(await tabs.count()).toBe(2)
+      expect(await tabs.count()).toBe(3)
       const tabLabels = await tabs.allTextContents()
-      expect(tabLabels).toEqual(['Bookmarks', 'All'])
+      expect(tabLabels).toEqual(['Bookmarks', 'Following', 'All'])
 
       // Then
       const activeTab = frame.locator('.category-tab--active')

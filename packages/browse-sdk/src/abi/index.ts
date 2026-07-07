@@ -17,6 +17,8 @@ export { decodeAttestationLabel, encodeAttestationLabel } from './attestation.js
 export {
   decodeAddress,
   decodeAddressArray,
+  decodeAttestation,
+  type DecodedAttestation,
   decodeBool,
   decodeBytes,
   decodeBytes32Array,
@@ -26,11 +28,14 @@ export {
 } from './codec.js'
 export { decodeIpfsContenthash } from './contenthash.js'
 export {
+  trustedAttestationId,
   encodeContenthash,
   encodeCountByRecipientAndSchema,
+  encodeGetAttestationById,
   encodeGetLabels,
   encodeGetLabelStores,
   encodeGetPublished,
+  encodeIdentityHasAttested,
   encodeIsActive,
   encodeIsActiveAny,
   encodeLabelOf,

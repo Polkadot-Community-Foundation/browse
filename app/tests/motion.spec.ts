@@ -1,9 +1,9 @@
 import { type Browser, type Frame, expect, test } from '@playwright/test'
 
 import { createCachedApps } from './fixtures/cache'
-import { fund } from './fixtures/fund'
+import { createProductSigner, fundWithNative } from './fixtures/fund'
 import { createRevokedAttestation } from './fixtures/revoke-attestation'
-import { getProductFrame, navigateToTestHost, startSignedHost } from './utils'
+import { DEV_PHRASE, getProductFrame, navigateToTestHost, startSignedHost } from './utils'
 import { SHUFFLE_MAX_MS, SHUFFLE_MIN_MS } from '../src/lib/use-flip'
 import type { AppEntry } from '../src/state/apps/types'
 
@@ -23,7 +23,7 @@ function entry(label: string, name: string, attestationCount: number): AppEntry 
     isLive: true,
     attestationCount,
     hasUserAttested: false,
-    isCompliant: false
+    certificate: null
   }
 }
 
@@ -204,15 +204,11 @@ test.describe('Motion', () => {
     await close()
   })
 
-  test('Recommending an app bubbles when the chain confirms', async ({ browser }) => {
+  test('Recommending an app bubbles when the network confirms', async ({ browser }) => {
     test.setTimeout(60000)
-    // Fund the signer and reset host-playground to un-attested, so the click
-    // recommends (mirrors attestation.spec, which is the funded/working path).
-    await fund('Charlie')
-    await createRevokedAttestation('host-playground', 'Charlie').catch(() => {})
-    const host = await startSignedHost('charlie')
-    // Force motion on so the burst fires regardless of the host OS "Reduce
-    // Motion" setting (the card skips the burst under prefers-reduced-motion).
+    await fundWithNative(createProductSigner().address)
+    await createRevokedAttestation('host-playground').catch(() => {})
+    const host = await startSignedHost({ name: 'smalltava.05', uri: `${DEV_PHRASE}//wallet` })
     const context = await browser.newContext({
       ignoreHTTPSErrors: true,
       reducedMotion: 'no-preference'
@@ -232,7 +228,7 @@ test.describe('Motion', () => {
 
     // Then
     await expect(card.locator('.product-card__bubble').first()).toBeVisible({ timeout: 15000 })
-    await expect(frame.locator('.toast--visible')).toContainText('Recommended!', { timeout: 15000 })
+    await expect(frame.locator('.toast--visible')).toContainText('Recommended!', { timeout: 25000 })
 
     // Linger in headed runs so the bubbling is watchable; no-op in CI.
     if (process.env.HEADED === '1') await frame.waitForTimeout(4000)

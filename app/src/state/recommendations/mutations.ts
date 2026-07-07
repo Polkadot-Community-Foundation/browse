@@ -5,7 +5,8 @@ import { AccountId, type SS58String } from 'polkadot-api'
 import { type LabelEntry, updateAttestationCount } from '../../db/labels'
 import { encodeAttestationLabel, namehash, nodeToSubject } from '../../lib/abi'
 import { attestationService } from '../../lib/attestation-service'
-import { NETWORK } from '../../lib/config'
+import { ACTIVE_SCHEMA_ID } from '../../lib/config'
+import { resolveIdentityH160 } from '../apps/identity'
 import { type AppEntry } from '../apps/types'
 
 const ALL_KEY = ['apps', 'all'] as const
@@ -105,9 +106,37 @@ function patchLabels(
   })
 }
 
+/**
+ * Add or remove a label from the my-recommendations set for the caller identity.
+ *
+ * Matches every `['attestations', 'mine']` query so the recommend button toggles
+ * at once instead of waiting for the enumeration to refetch.
+ */
+function patchMine(
+  queryClient: ReturnType<typeof useQueryClient>,
+  label: string,
+  add: boolean
+): void {
+  queryClient.setQueriesData<Set<string>>({ queryKey: ['attestations', 'mine'] }, (prev) => {
+    if (!prev) return prev
+    const next = new Set(prev)
+    if (add) next.add(label)
+    else next.delete(label)
+    return next
+  })
+}
+
 /** Translate a raw chain/mutation error into a user-facing toast message. */
 export function describeError(err: unknown): string {
   const msg = err instanceof Error ? err.message : String(err)
+  if (msg.includes('No DotNS username')) {
+    return 'Allow reveal username'
+  }
+  // The resolver refuses a second recommendation from the same identity. Tell
+  // the user it already counts rather than showing a generic failure.
+  if (msg.includes('ResolverRejected')) {
+    return 'Already recommended by you'
+  }
   if (msg.includes('NotEnoughFunds') || msg.includes('"type": "Payment"')) {
     return 'Not enough allowance'
   }
@@ -124,20 +153,21 @@ export function describeError(err: unknown): string {
 export async function attestLabel(label: string, onPermitted?: () => void) {
   const recipient = nodeToSubject(namehash(`${label}.dot`))
   const data = encodeAttestationLabel(label)
-  try {
-    return await attestationService.attest(
-      NETWORK.SCHEMA_ID,
-      recipient,
-      0n,
-      true,
-      0n,
-      data,
-      onPermitted
-    )
-  } catch (err) {
-    console.error('[attestLabel] failed for', label, err)
-    throw err
-  }
+  const account = await attestationService.productH160()
+  // The first recommendation from an unbound account batches the identity
+  // binding and the attestation into one tx. Later ones are a plain single attest.
+  const bound = BigInt(await attestationService.boundIdentity(account)) !== 0n
+  return bound
+    ? attestationService.attest(ACTIVE_SCHEMA_ID, recipient, 0n, true, 0n, data, onPermitted)
+    : attestationService.bindIdentityAndAttest(
+        ACTIVE_SCHEMA_ID,
+        recipient,
+        0n,
+        true,
+        0n,
+        data,
+        onPermitted
+      )
 }
 
 async function getAttesterH160(): Promise<string> {
@@ -147,38 +177,36 @@ async function getAttesterH160(): Promise<string> {
 }
 
 export async function revokeLabel(label: string, onPermitted?: () => void) {
-  try {
-    const recipient = nodeToSubject(namehash(`${label}.dot`))
-    const ids = await attestationService.listByRecipientAndSchema(
-      recipient,
-      NETWORK.SCHEMA_ID,
-      0n,
-      100n
-    )
-    if (ids.length === 0) throw new Error('No attestation to revoke')
+  const recipient = nodeToSubject(namehash(`${label}.dot`))
+  const ids = await attestationService.listByRecipientAndSchema(recipient, 0n, 100n)
+  if (ids.length === 0) throw new Error('No attestation to revoke')
 
-    const attesterH160 = await getAttesterH160()
-    const attestations = await Promise.all(
-      ids.map((id) => attestationService.getAttestationById(id))
-    )
-    const match = ids.find((_, i) => attestations[i].attester.toLowerCase() === attesterH160)
-    if (match === undefined) throw new Error('No attestation to revoke')
-
-    return await attestationService.revoke(NETWORK.SCHEMA_ID, match, onPermitted)
-  } catch (err) {
-    console.error('[revokeLabel] failed for', label, err)
-    throw err
+  const attesterH160 = await getAttesterH160()
+  const attestations = await Promise.all(ids.map((id) => attestationService.getAttestationById(id)))
+  const mine = attestations
+    .map((a, i) => ({ schema: a.schema, id: ids[i], attester: a.attester }))
+    .filter((a) => a.attester.toLowerCase() === attesterH160)
+  if (mine.length === 0) {
+    // The button is active because this identity recommended the app, but the
+    // attestation was signed by a different product account of the same
+    // identity, so there is nothing this account can revoke. Surface it as the
+    // one-per-identity lock rather than a generic failure.
+    const identity = await resolveIdentityH160()
+    if (identity && (await attestationService.identityHasAttested(recipient, identity))) {
+      throw new Error('AttestationService__ResolverRejected')
+    }
+    throw new Error('No attestation to revoke')
   }
+
+  // Prefer the active schema so its one-per-identity lock is released and the
+  // user can recommend again. Fall back to an older version.
+  const chosen = mine.find((a) => a.schema === ACTIVE_SCHEMA_ID) ?? mine[0]
+  return attestationService.revoke(chosen.schema, chosen.id, onPermitted)
 }
 
 export async function getAttestationId(label: string): Promise<bigint | null> {
   const recipient = nodeToSubject(namehash(`${label}.dot`))
-  const ids = await attestationService.listByRecipientAndSchema(
-    recipient,
-    NETWORK.SCHEMA_ID,
-    0n,
-    100n
-  )
+  const ids = await attestationService.listByRecipientAndSchema(recipient, 0n, 100n)
   if (ids.length === 0) return null
 
   const attesterH160 = await getAttesterH160()
@@ -201,10 +229,12 @@ export function useAttestProduct() {
         )
         patchLabels(queryClient, label, 1, true)
         patchResolved(queryClient, label, attestPatch)
+        patchMine(queryClient, label, true)
         onBroadcast?.()
       }),
     onError: (_err, { label }, ctx) => {
       if (ctx) rollback(queryClient, label, ctx)
+      void queryClient.invalidateQueries({ queryKey: ['attestations', 'mine'] })
     },
     onSuccess: (_data, { label }) => {
       void updateAttestationCount(label, 1, true)
@@ -226,10 +256,12 @@ export function useRevokeApp() {
         )
         patchLabels(queryClient, label, -1, false)
         patchResolved(queryClient, label, revokePatch)
+        patchMine(queryClient, label, false)
         onBroadcast?.()
       }),
     onError: (_err, { label }, ctx) => {
       if (ctx) rollback(queryClient, label, ctx)
+      void queryClient.invalidateQueries({ queryKey: ['attestations', 'mine'] })
     },
     onSuccess: (_data, { label }) => {
       void updateAttestationCount(label, -1, false)
