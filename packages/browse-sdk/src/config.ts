@@ -44,19 +44,19 @@ export const SUMMIT_ASSETHUB_GENESIS =
 
 export const KNOWN_NETWORKS = {
   [PASEO_ASSETHUB_NEXT_V2_GENESIS]: {
-    MULTICALL3: "0xFc430CcCdb9335C1907fc72e93eb1f48e847319C",
-    STORE_FACTORY: "0x692047C1477a017F287488E1c85F96Ca28C23fD8",
-    CONTENT_RESOLVER: "0x8A26480b0B5Df3d4D9b95adc24a5Ecb33A5b8F64",
-    REGISTRY: "0xa1b2b939E82b2ecE55Bd8a0E283818BfC1CA6CDc",
-    REGISTRAR: "0xf7Ad3F44F316C73E4a2b46b1ed48d376bCc9E639",
+    // PCF-owned suite on paseo-next AH-1500 (DotNS manifest
+    // dotns deployments/paseo-next-asset-hub/420420417.json, verified on-chain).
+    // Attestation contracts below still point at the pre-existing (non-PCF)
+    // deployment until the PCF attestation-protocol lands on 1500.
+    MULTICALL3: "0x1C1044BEa5bDe0F435436bB52A8340fBE1D59847",
+    STORE_FACTORY: "0x2947af3CBFb45b89610524a25921C32cB65C4C39",
+    CONTENT_RESOLVER: "0xf110e5799c3f0adb8ED885C02c45Ecfe7fD86226",
+    REGISTRY: "0xFb7AB7E142ED0248D77198CA8722D67C1930D783",
+    REGISTRAR: "0xf3969bCBE60463302306663C62A6A8ef91ab9aA5",
     PUBLISHER: [
       {
         version: "2.1.0",
-        address: "0x0d30645f1d2c7dfa11926190e456a45db440581f",
-      },
-      {
-        version: "2.0.0",
-        address: "0xa616254fd98724c7a3d295c98ca393a486096b68",
+        address: "0x234e434e66f246def2207558dcdb0585d2de9fdc",
       },
     ],
     SCHEMA_REGISTRY: "0xbe92a66b697dc9bd4a35b1b8e3aead484d2010a7",
