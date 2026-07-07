@@ -5,10 +5,10 @@
 
 import { type QueryClient, queryOptions, useQuery } from '@tanstack/react-query'
 
-import { resolveUserH160 } from './identity'
+import { resolveIdentityH160 } from './identity'
 import { hydrateLabelChunk } from './remote'
 import { materialize, syncAllApps } from './sync'
-import type { AppEntry } from './types'
+import { type AppEntry, labelToApp } from './types'
 import { readBookmarks } from '../../db/bookmarks'
 import { type LabelEntry, readLabels } from '../../db/labels'
 import { ensureBrowseSdk } from '../../lib/client'
@@ -102,21 +102,11 @@ export async function prefetchAllApps(queryClient: QueryClient) {
  * Resolve a single `.dot` label to an {@link AppEntry} with live state.
  */
 async function resolveLabel(name: string): Promise<AppEntry | null> {
-  const userH160 = await resolveUserH160()
-  const [entry] = await hydrateLabelChunk([name], userH160)
+  const identityH160 = await resolveIdentityH160()
+  const [entry] = await hydrateLabelChunk([name], identityH160)
   if (!entry?.contentHash) return null
 
-  return {
-    label: entry.label,
-    name: entry.name,
-    description: entry.description,
-    iconCid: entry.iconCid,
-    contentHash: entry.contentHash,
-    isLive: true,
-    attestationCount: entry.attestationCount,
-    hasUserAttested: entry.hasUserAttested,
-    isCompliant: entry.isCompliant ?? false
-  }
+  return labelToApp(entry)
 }
 const LABEL_RESOLVE_TIMEOUT_MS = 5_000 // 5s
 

@@ -21,7 +21,7 @@
  * and exporting a new `encode…` wrapper.
  */
 
-import { type Address, encodeFunctionData, type Hex, parseAbi } from 'viem'
+import { type Address, encodeFunctionData, encodePacked, type Hex, keccak256, parseAbi } from 'viem'
 
 const PUBLISHER_ABI = parseAbi([
   'function getPublished(uint256 offset, uint256 limit) view returns (bytes32[])',
@@ -105,7 +105,8 @@ export function encodeOwner(): Hex {
 const ATTESTATION_ABI = parseAbi([
   'function countByRecipientAndSchema(address recipient, uint256 schemaId) view returns (uint64)',
   'function isActiveAny(address recipient, uint256 schemaId, address[] attesters) view returns (bool)',
-  'function isActive(address recipient, uint256 schemaId) view returns (bool)'
+  'function isActive(address recipient, uint256 schemaId) view returns (bool)',
+  'function identityHasAttested(address recipient, uint256 schemaId, address identity) view returns (bool)'
 ])
 
 export function encodeCountByRecipientAndSchema(recipient: Address, schemaId: bigint): Hex {
@@ -125,6 +126,26 @@ export function encodeIsActiveAny(recipient: Address, schemaId: bigint, attester
 }
 
 /**
+ * `RecipientAndAttesterIndexResolver.identityHasAttested(recipient, schemaId, identity)`
+ *
+ * Whether the given identity account has an active attestation for the pair,
+ * independent of which product account signed it. Use this rather than
+ * `isActiveAny` when the question is "did this identity recommend?", since the
+ * attester is a product account bound to the identity, not the identity itself.
+ */
+export function encodeIdentityHasAttested(
+  recipient: Address,
+  schemaId: bigint,
+  identity: Address
+): Hex {
+  return encodeFunctionData({
+    abi: ATTESTATION_ABI,
+    functionName: 'identityHasAttested',
+    args: [recipient, schemaId, identity]
+  })
+}
+
+/**
  * `TrustedAttesterIndexResolver.isActive(recipient, schemaId)`
  */
 export function encodeIsActive(recipient: Address, schemaId: bigint): Hex {
@@ -133,4 +154,41 @@ export function encodeIsActive(recipient: Address, schemaId: bigint): Hex {
     functionName: 'isActive',
     args: [recipient, schemaId]
   })
+}
+
+const ATTESTATION_SERVICE_ABI = parseAbi([
+  'function getAttestationById(uint256 id) view returns ((uint256 id, uint256 schema, uint64 time, uint64 expirationTime, uint64 revocationTime, uint256 refId, address recipient, address attester, bool revocable, bytes data))'
+])
+
+/**
+ * Encode a read of `AttestationService.getAttestationById(id)`.
+ *
+ * Returns the full Attestation struct. Decode the `data` field with {@link
+ * decodeAttestation}.
+ */
+export function encodeGetAttestationById(id: bigint): Hex {
+  return encodeFunctionData({
+    abi: ATTESTATION_SERVICE_ABI,
+    functionName: 'getAttestationById',
+    args: [id]
+  })
+}
+
+/**
+ * The deterministic attestation id the {@link
+ * TrustedAttesterIndexResolver} uses for a unique-schema attestation:
+ * `keccak256(abi.encodePacked(trustedAttester, recipient, schema))`. Mirrors the
+ * resolver slot so the service `getAttestationById` can be called directly, with
+ * no enumeration.
+ */
+export function trustedAttestationId(
+  trustedAttester: Address,
+  recipient: Address,
+  schemaId: bigint
+): bigint {
+  const packed = encodePacked(
+    ['address', 'address', 'uint256'],
+    [trustedAttester, recipient, schemaId]
+  )
+  return BigInt(keccak256(packed))
 }

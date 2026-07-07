@@ -3,6 +3,7 @@ import { memo, useEffect, useState } from 'preact/compat'
 import { ArrowBigUp, ArrowUpRight, BadgeCheck, Bookmark, Share2 } from 'lucide-preact'
 
 import { BubbleBurst } from './bubble-burst'
+import { CERTIFICATE } from '../../lib/certificates'
 import { useIconBlob } from '../../state/apps/icon'
 import { type AppEntry, displayName } from '../../state/apps/types'
 import { Identicon } from '../identicon'
@@ -21,6 +22,7 @@ interface ProductCardProps {
   onBookmark?: (label: string) => void
   onShare?: (app: AppEntry) => void
   onClickAttestation?: () => void
+  onClickCertificate?: () => void
 }
 
 export const ProductCard = memo(function ProductCard({
@@ -35,7 +37,8 @@ export const ProductCard = memo(function ProductCard({
   onClick,
   onBookmark,
   onShare,
-  onClickAttestation
+  onClickAttestation,
+  onClickCertificate
 }: ProductCardProps) {
   const instant = index < 0
   const delay = instant ? 0 : Math.min(index * 100, 700)
@@ -74,6 +77,7 @@ export const ProductCard = memo(function ProductCard({
       class={`product-card${instant ? ' product-card--instant' : ''}`}
       style={`animation-delay: ${delay}ms`}
       data-label={app.label}
+      title={`Open ${app.label}.dot`}
       tabIndex={0}
       onClick={() => onClick(app.label)}
       onKeyDown={(e) => {
@@ -102,32 +106,37 @@ export const ProductCard = memo(function ProductCard({
         )}
       </div>
       <div class='product-card__body'>
-        <div class='product-card__title-row'>
-          <span class='product-card__name'>{name}</span>
-          {app.isCompliant && (
-            <span
-              class='product-card__certified'
-              role='img'
-              aria-label='Certificate of User Interface Compliance'
-            >
-              <BadgeCheck size={14} />
-            </span>
-          )}
-          {showActions && (
-            <button
-              class={`product-card__bookmark${bookmarked ? ' product-card__bookmark--active' : ''}`}
-              onClick={(e) => {
-                e.stopPropagation()
-                onBookmark(app.label)
-              }}
-              aria-label={bookmarked ? 'Remove bookmark' : 'Bookmark'}
-              aria-pressed={bookmarked}
-            >
-              <Bookmark size={16} fill={bookmarked ? 'currentColor' : 'none'} />
-            </button>
-          )}
+        <div class='product-card__text'>
+          <div class='product-card__title-row'>
+            <span class='product-card__name'>{name}</span>
+            {app.certificate && (
+              <button
+                class='product-card__certified'
+                aria-label={CERTIFICATE.name}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onClickCertificate?.()
+                }}
+              >
+                <BadgeCheck size={14} />
+              </button>
+            )}
+            {showActions && (
+              <button
+                class={`product-card__bookmark${bookmarked ? ' product-card__bookmark--active' : ''}`}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onBookmark(app.label)
+                }}
+                aria-label={bookmarked ? 'Remove bookmark' : 'Bookmark'}
+                aria-pressed={bookmarked}
+              >
+                <Bookmark size={16} fill={bookmarked ? 'currentColor' : 'none'} />
+              </button>
+            )}
+          </div>
+          <p class='product-card__desc'>{app.description}</p>
         </div>
-        <p class='product-card__desc'>{app.description}</p>
         <div class='product-card__footer'>
           <button
             class='product-card__open'

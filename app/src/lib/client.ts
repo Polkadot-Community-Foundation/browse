@@ -2,27 +2,39 @@ import { createPapiProvider, hostApi } from '@novasamatech/host-api-wrapper'
 import {
   type BrowseSdk,
   createBrowseSdk,
-  PASEO_ASSET_HUB_NEXT_V2_GENESIS,
-  PREVIEWNET_ASSET_HUB_GENESIS,
-  SUMMIT_ASSET_HUB_GENESIS
+  PASEO_ASSETHUB_NEXT_V2_GENESIS,
+  PREVIEWNET_ASSETHUB_GENESIS,
+  SUMMIT_ASSETHUB_GENESIS
 } from '@parity/browse-sdk'
-import { paseohub, previewnethub, summithub } from '@polkadot-api/descriptors'
-import type { PolkadotClient, TypedApi } from 'polkadot-api'
+import {
+  paseohub,
+  paseopeople,
+  previewnethub,
+  previewnetpeople,
+  summithub
+} from '@polkadot-api/descriptors'
+import {
+  AccountId,
+  createClient,
+  type PolkadotClient,
+  type SS58String,
+  type TypedApi
+} from 'polkadot-api'
 
-import { ASSET_HUB_GENESIS, DUMMY_ORIGIN, NETWORK } from './config'
+import { ASSETHUB_GENESIS, DUMMY_ORIGIN, NETWORK } from './config'
 
 const descriptor = ({
-  [PASEO_ASSET_HUB_NEXT_V2_GENESIS]: paseohub,
-  [PREVIEWNET_ASSET_HUB_GENESIS]: previewnethub,
-  [SUMMIT_ASSET_HUB_GENESIS]: summithub
-}[ASSET_HUB_GENESIS] ?? paseohub) as typeof paseohub
+  [PASEO_ASSETHUB_NEXT_V2_GENESIS]: paseohub,
+  [PREVIEWNET_ASSETHUB_GENESIS]: previewnethub,
+  [SUMMIT_ASSETHUB_GENESIS]: summithub
+}[ASSETHUB_GENESIS] ?? paseohub) as typeof paseohub
 
 export type PaseoHubApi = TypedApi<typeof paseohub>
 
 async function networkSupported(): Promise<boolean> {
   const payload = {
     tag: 'v1',
-    value: { tag: 'Chain', value: ASSET_HUB_GENESIS }
+    value: { tag: 'Chain', value: ASSETHUB_GENESIS }
   } as Parameters<typeof hostApi.featureSupported>[0]
   return hostApi.featureSupported(payload).match(
     (ok) => ok.value !== false,
@@ -37,9 +49,9 @@ export function ensureBrowseSdk(): Promise<BrowseSdk> {
   if (!sdkPromise) {
     sdkPromise = (async () => {
       if (!(await networkSupported())) {
-        throw new Error(`Host does not support network ${ASSET_HUB_GENESIS}`)
+        throw new Error(`Host does not support network ${ASSETHUB_GENESIS}`)
       }
-      return createBrowseSdk(NETWORK, createPapiProvider(ASSET_HUB_GENESIS))
+      return createBrowseSdk(NETWORK, createPapiProvider(ASSETHUB_GENESIS))
     })().catch((err) => {
       sdkPromise = null
       throw err
@@ -48,17 +60,46 @@ export function ensureBrowseSdk(): Promise<BrowseSdk> {
   return sdkPromise
 }
 
+// A reset destroys the shared client, which disjoints every in-flight operation
+// on it.
+let pendingWrites = 0
+let resetRequested = false
+
+/** Bracket a network request so a concurrent reset is deferred, not applied under it. */
+export function startTransaction(): void {
+  pendingWrites += 1
+}
+
+export function endTransaction(): void {
+  pendingWrites = Math.max(0, pendingWrites - 1)
+  if (pendingWrites === 0 && resetRequested) {
+    resetRequested = false
+    resetBrowseSdk()
+  }
+}
+
 /**
  * Drop the cached SDK and destroy the old client. Destroying propagates the
  * disconnect through the host bridge so the host deletes its chain-connection
  * entry. Otherwise it reuses a stale, post-background/foreground connection
- * that never recovers.
+ * that never recovers. Deferred while a chain write is in flight unless
+ * `force` is set — foreground and hard-failure paths know the socket is dead
+ * so preserving the in-flight write is pointless.
  */
-export function resetBrowseSdk(): void {
+export function resetBrowseSdk(force: boolean = false): void {
+  if (pendingWrites > 0 && !force) {
+    resetRequested = true
+    return
+  }
+  if (pendingWrites > 0) {
+    pendingWrites = 0
+  }
+  resetRequested = false
   const stale = sdkPromise
   sdkPromise = null
+  if (!stale) return
   void stale
-    ?.then((sdk) => {
+    .then((sdk) => {
       try {
         sdk.destroy()
       } catch {
@@ -141,7 +182,51 @@ export async function reviveCall(
   try {
     return await attempt()
   } catch {
-    resetBrowseSdk()
+    resetBrowseSdk(true)
     return attempt()
   }
+}
+
+const PEOPLE_DESCRIPTOR_BY_ASSETHUB = {
+  [PREVIEWNET_ASSETHUB_GENESIS]: previewnetpeople,
+  [PASEO_ASSETHUB_NEXT_V2_GENESIS]: paseopeople
+} as const
+
+type PeopleApi = TypedApi<typeof previewnetpeople>
+
+let peoplePromise: Promise<PeopleApi> | null = null
+
+export function ensurePeopleApi(): Promise<PeopleApi> {
+  if (!peoplePromise) {
+    peoplePromise = (async () => {
+      const genesis = NETWORK.PEOPLE_GENESIS
+      const descriptor =
+        PEOPLE_DESCRIPTOR_BY_ASSETHUB[
+          ASSETHUB_GENESIS as keyof typeof PEOPLE_DESCRIPTOR_BY_ASSETHUB
+        ]
+      if (!genesis || !descriptor) {
+        throw new Error(`No People chain configured for network ${ASSETHUB_GENESIS}`)
+      }
+      const client = createClient(createPapiProvider(genesis))
+      return client.getTypedApi(descriptor) as PeopleApi
+    })().catch((err) => {
+      peoplePromise = null
+      throw err
+    })
+  }
+  return peoplePromise
+}
+
+/**
+ * Resolve a bare DotNS username to the 32-byte
+ * public key of its owning root account, or `null` when the username owns no
+ * account.
+ */
+export async function resolveUsernameOwner(username: string): Promise<Uint8Array | null> {
+  const api = await ensurePeopleApi()
+  const owner = await api.query.Resources.UsernameOwnerOf.getValue(
+    new TextEncoder().encode(username)
+  )
+  if (!owner) return null
+  return AccountId().enc(owner as SS58String)
 }
