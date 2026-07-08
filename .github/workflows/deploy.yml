@@ -61,9 +61,9 @@ jobs:
       fail-fast: false
       matrix:
         target:
-          - env: summit
-            display-name: Summit
-            genesis: '0xf388dc6d6cdf6fb77eac3c4a91f31bc0c8642b142f1a757512ab7849f9f70660'
+          - env: paseo-next
+            display-name: Paseo Next (PCF)
+            genesis: '0xbf0488dbe9daa1de1c08c5f743e26fdc2a4ecd74cf87dd1b4b1eeb99ae4ef19f'
             reuse-artifact: false
             required: true
     outputs:
@@ -247,13 +247,13 @@ jobs:
           echo "domain=${DOMAIN}" >> "$GITHUB_OUTPUT"
           
       - name: Persist CID for release
-        if: matrix.target.env == 'summit' && github.ref == 'refs/heads/main' && steps.final.outputs.cid != ''
+        if: matrix.target.env == 'paseo-next' && github.ref == 'refs/heads/main' && steps.final.outputs.cid != ''
         run: |
           mkdir -p .release-cid
           echo "${{ steps.final.outputs.cid }}" > .release-cid/cid
 
       - name: Cache CID by commit
-        if: matrix.target.env == 'summit' && github.ref == 'refs/heads/main' && steps.final.outputs.cid != ''
+        if: matrix.target.env == 'paseo-next' && github.ref == 'refs/heads/main' && steps.final.outputs.cid != ''
         uses: actions/cache/save@v4
         with:
           path: .release-cid
