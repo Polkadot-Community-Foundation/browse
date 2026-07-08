@@ -46,8 +46,6 @@ export const KNOWN_NETWORKS = {
   [PASEO_ASSETHUB_NEXT_V2_GENESIS]: {
     // PCF-owned suite on paseo-next AH-1500 (DotNS manifest
     // dotns deployments/paseo-next-asset-hub/420420417.json, verified on-chain).
-    // Attestation contracts below still point at the pre-existing (non-PCF)
-    // deployment until the PCF attestation-protocol lands on 1500.
     MULTICALL3: "0x1C1044BEa5bDe0F435436bB52A8340fBE1D59847",
     STORE_FACTORY: "0x2947af3CBFb45b89610524a25921C32cB65C4C39",
     CONTENT_RESOLVER: "0xf110e5799c3f0adb8ED885C02c45Ecfe7fD86226",
@@ -59,16 +57,15 @@ export const KNOWN_NETWORKS = {
         address: "0x234e434e66f246def2207558dcdb0585d2de9fdc",
       },
     ],
-    SCHEMA_REGISTRY: "0xbe92a66b697dc9bd4a35b1b8e3aead484d2010a7",
-    ATTESTATION_SERVICE: "0x24af868f14605460f6385aae166986cee9800514",
+    SCHEMA_REGISTRY: "0x358e11d99749a81fc02eb20d8e4732619caea0a0",
+    ATTESTATION_SERVICE: "0x110877cc32b31ea6a11c60b2e4d2c37cbb97bb3e",
     ATTESTATION_INDEX_RESOLVER: [
-      "0x1fa4627395455ec42cfb574c895b5bc5e9e40c4f",
-      "0x5d701a1aca551b0e1cd6a00172554e5ff2348104",
+      "0x4a6c08e97ace2d3e3ff9d4a877c36a67ae307b1a",
     ],
-    TRUSTED_ATTESTER_RESOLVER: "0x5abfc89934ee846d12629dfb5b22eecc59bbaed3",
-    TRUSTED_ATTESTER: "0x35Cdb23fF7fc86E8DCcd577CA309bFEA9c978D20",
+    TRUSTED_ATTESTER_RESOLVER: "0x6a1421a1f0f1535e402d8655ea253e21dc5d9894",
+    TRUSTED_ATTESTER: "0xF8d186c352e2ea0B9C02c211525A20DdcB8CD2dD",
     IPFS_GATEWAY: "https://paseo-bulletin-next-ipfs.polkadot.io",
-    SCHEMA_ID: [5n, 1n],
+    SCHEMA_ID: [1n],
     COMPLIANCE_SCHEMA_ID: 2n,
     ASSETHUB_RPCS: ["wss://paseo-asset-hub-next-rpc.polkadot.io"],
     PEOPLE_GENESIS:
