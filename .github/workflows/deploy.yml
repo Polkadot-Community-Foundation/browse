@@ -204,7 +204,7 @@ jobs:
         run: |
           # PCF fork of bulletin-deploy (renamed). ≥0.11.1 wires the Summit
           # Publisher; ships under the @polkadot-community-foundation scope.
-          npm install -g @polkadot-community-foundation/polkadot-app-deploy@0.12.0
+          npm install -g @polkadot-community-foundation/polkadot-app-deploy@0.12.1
           # Scoped symlink so require.resolve('@polkadot-community-foundation/
           # polkadot-app-deploy') resolves from app/ (the 0.11.x root export is
           # ESM-only and false-fails a bare require.resolve otherwise).

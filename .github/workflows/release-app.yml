@@ -59,7 +59,7 @@ jobs:
           node-version: '22'
 
       - name: Install dotns CLI (PCF fork)
-        run: npm install -g @polkadot-community-foundation/dotns-cli@0.7.2
+        run: npm install -g @polkadot-community-foundation/dotns-cli@0.7.3
 
       - name: Point domain at the released CID
         run: dotns content set "$APP_DOTNS_DOMAIN" "${{ steps.cid.outputs.cid }}" --env summit
