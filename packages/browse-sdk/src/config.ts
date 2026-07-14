@@ -98,7 +98,7 @@ export const KNOWN_NETWORKS = {
     TRUSTED_ATTESTER: "0x35Cdb23fF7fc86E8DCcd577CA309bFEA9c978D20",
     IPFS_GATEWAY: "https://previewnet.substrate.dev",
     SCHEMA_ID: [6n, 1n],
-    COMPLIANCE_SCHEMA_ID: 2n,
+    COMPLIANCE_SCHEMA_ID: 7n,
     ASSETHUB_RPCS: ["wss://previewnet.substrate.dev/asset-hub"],
     PEOPLE_GENESIS:
       "0x3389bc9179d3be32568c67278bd080d05631ac71982d28a3fe545421147b311e",
