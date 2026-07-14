@@ -141,16 +141,16 @@ jobs:
       # so it would fail legitimate Summit deploys. Instead we assert the bundle
       # was baked with the Summit genesis (matrix.target.genesis) — i.e. that the
       # build did NOT silently fall back to the Paseo default genesis.
-      - name: Assert bundle targets Summit (not the Paseo default)
+      - name: Assert bundle targets devnet (not the Paseo default)
         if: matrix.target.reuse-artifact != true
         env:
           EXPECTED_GENESIS: ${{ matrix.target.genesis }}
         run: |
           if ! grep -rIql "$EXPECTED_GENESIS" app/dist/spa; then
-            echo "::error::Built bundle does not contain the Summit genesis ($EXPECTED_GENESIS) — build may have fallen back to the Paseo default"
+            echo "::error::Built bundle does not contain the devnet genesis ($EXPECTED_GENESIS) — build may have fallen back to the Paseo default"
             exit 1
           fi
-          echo "OK: bundle baked with Summit genesis $EXPECTED_GENESIS"
+          echo "OK: bundle baked with devnet genesis $EXPECTED_GENESIS"
 
       - name: Compute build hash
         id: hash
