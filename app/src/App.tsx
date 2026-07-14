@@ -5,9 +5,11 @@ import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
 
 import { createAccountsProvider } from '@novasamatech/host-api-wrapper'
 import { useQueryClient } from '@tanstack/react-query'
-import { ArrowUp, Bookmark, Package } from 'lucide-preact'
+import { ArrowUp, Bookmark, Package, Plus } from 'lucide-preact'
 
 import { CategoryTabs } from './components/category-tabs'
+import { CertificateAuthorityManager } from './components/certificate-authority-manager'
+import { CertificateBadge } from './components/certificate-badge'
 import { CertificateModal } from './components/certificate-modal'
 import { FollowingManager } from './components/following-manager'
 import { FOLLOW_ICON, SEARCH_ICON } from './components/icons'
@@ -41,6 +43,10 @@ import {
   type FilterMode,
   isFilterMode
 } from './state/apps/types'
+import {
+  useKnownCertificateAuthorities,
+  useSelectedCertificateAuthorities
+} from './state/certificate-authorities/queries'
 import { follow, type FollowedAccount, getFollowing, unfollow } from './state/following/api'
 import {
   useGetAttestationsByFollowing,
@@ -85,6 +91,7 @@ export function App() {
   const [signed, setSigned] = useState(false)
   const [following, setFollowing] = useState<FollowedAccount[]>([])
   const [showFollowingManager, setShowFollowingManager] = useState(false)
+  const [showIssuers, setShowIssuers] = useState(false)
   const [suggestionPrefix, setSuggestionPrefix] = useState('')
   // Touch devices get a minimum-visible hold on the dots after a pull-refresh.
   const [pullRefreshFloor, setPullRefreshFloor] = useState(false)
@@ -162,6 +169,15 @@ export function App() {
     }, 400)
     return () => clearTimeout(timer)
   }, [followingApps])
+  // Selection is a display filter. Hydration caches every known authority
+  // certificate, and only selected ones render as badges. Toggling an authority
+  // in the manager updates this set and re-filters instantly, with no re-sync.
+  const { data: selectedAuthorities = [] } = useSelectedCertificateAuthorities()
+  const { data: knownAuthorities = [] } = useKnownCertificateAuthorities()
+  const selectedResolvers = useMemo(
+    () => new Set(selectedAuthorities.map((resolver) => resolver.toLowerCase())),
+    [selectedAuthorities]
+  )
   const appsForFiltering = useMemo(() => {
     const byLabel = new Map<string, AppEntry>()
     for (const app of allApps) byLabel.set(app.label, app)
@@ -179,22 +195,35 @@ export function App() {
         isLive: cached?.contentHash != null,
         attestationCount: cached?.attestationCount ?? null,
         hasUserAttested: cached?.hasUserAttested ?? false,
-        certificate: cached?.certificate ?? null
+        certificates: cached?.certificates ?? []
       })
     }
     for (const label of followingDisplay) addLabel(label)
     for (const label of bookmarkedApps) addLabel(label)
     // The recommend button is active when this identity recommended the app,
     // preserving any optimistic `hasUserAttested` from a just-submitted toggle.
-    return [...byLabel.values()].map((app) =>
-      myRecommendations.has(app.label) && !app.hasUserAttested
-        ? { ...app, hasUserAttested: true }
-        : app
-    )
-  }, [allApps, followingDisplay, bookmarkedApps, labelDb, myRecommendations])
+    return [...byLabel.values()].map((app) => {
+      // Show only badges from selected authorities. Hydration cached them all.
+      const visible = app.certificates.filter((c) =>
+        selectedResolvers.has(c.resolver.toLowerCase())
+      )
+      const scoped =
+        visible.length === app.certificates.length ? app : { ...app, certificates: visible }
+      return myRecommendations.has(scoped.label) && !scoped.hasUserAttested
+        ? { ...scoped, hasUserAttested: true }
+        : scoped
+    })
+  }, [allApps, followingDisplay, bookmarkedApps, labelDb, myRecommendations, selectedResolvers])
   // Labels from the Publisher set, used to scope the All tab to published apps
   // only (bookmarked/followed entries belong to their own tabs).
   const publishedLabels = useMemo(() => new Set(allApps.map((app) => app.label)), [allApps])
+  // The selected authorities shown as badges in the pill, the known set filtered
+  // by the same selected resolvers as the card badges. Toggling in the manager
+  // updates it immediately, independent of whether it certified any loaded app.
+  const installedBadges = useMemo(
+    () => knownAuthorities.filter((authority) => selectedResolvers.has(authority.resolver)),
+    [knownAuthorities, selectedResolvers]
+  )
   const filtered = useMemo(() => {
     const result = filterApps(
       appsForFiltering,
@@ -293,7 +322,7 @@ export function App() {
           isLive: false,
           attestationCount: null,
           hasUserAttested: false,
-          certificate: null
+          certificates: []
         } satisfies AppEntry,
         snapshotOnly: true
       }))
@@ -355,7 +384,7 @@ export function App() {
       contentHash: app.contentHash,
       attestationCount: app.attestationCount,
       hasUserAttested: app.hasUserAttested,
-      certificate: app.certificate,
+      certificates: app.certificates,
       fetchedAt: Date.now()
     })
     await queryClient.invalidateQueries({ queryKey: LABELS_KEY })
@@ -436,6 +465,7 @@ export function App() {
   // touch, hold the loading dots for a minimum window so the pull always reads
   // as feedback even if the reset resolves instantly.
   const refreshConnection = useEvent(() => {
+    console.warn('debug network connection', JSON.stringify({ event: 'refreshConnection' }))
     resetBrowseSdk()
     if (isMobile) {
       clearTimeout(pullFloorTimer.current)
@@ -469,7 +499,7 @@ export function App() {
       contentHash: resolvedApp.contentHash,
       attestationCount: resolvedApp.attestationCount,
       hasUserAttested: resolvedApp.hasUserAttested,
-      certificate: resolvedApp.certificate,
+      certificates: resolvedApp.certificates,
       fetchedAt: Date.now(),
       // A resolved search result is NOT confirmed against the Publisher set, so
       // mark it unpublished. Otherwise materialize() would surface it in the
@@ -482,6 +512,10 @@ export function App() {
   useEffect(() => {
     const provider = createAccountsProvider()
     const sub = provider.subscribeAccountConnectionStatus((status) => {
+      console.warn(
+        'debug network connection',
+        JSON.stringify({ event: 'accountConnectionStatus', status })
+      )
       setSigned(status === 'connected')
     })
     return () => sub.unsubscribe()
@@ -543,11 +577,11 @@ export function App() {
       onBookmark={handleBookmark}
       onShare={handleShare}
       onAttestationSettled={() => commitOrder(app.label)}
-      onClickCertificate={() => {
+      onClickCertificate={(certificate) => {
         setCertificateView({
           subjectName: app.name,
           subjectDomain: `${app.label}.dot`,
-          certificate: app.certificate
+          certificate
         })
         setCertificateModalOpen(true)
       }}
@@ -671,20 +705,47 @@ export function App() {
                 <span class='loading-dots__dot' />
               </div>
 
-              {currentMode === 'following' &&
-                (following.length > 0 || followingDisplay.size > 0) && (
+              {!coldStart && (
+                <div class='corner-chips' key={currentMode}>
+                  {currentMode === 'following' &&
+                    (following.length > 0 || followingDisplay.size > 0) && (
+                      <button
+                        type='button'
+                        class='corner-chip corner-chip--manage'
+                        onClick={() => setShowFollowingManager(true)}
+                        aria-label={`Manage following, ${following.length} address${following.length === 1 ? '' : 'es'}`}
+                      >
+                        {following.length > 0 && (
+                          <span class='corner-chip__addr'>{following.length}</span>
+                        )}
+                        <span class='corner-chip__label'>following</span>
+                      </button>
+                    )}
+
                   <button
                     type='button'
-                    class='corner-chip corner-chip--manage'
-                    onClick={() => setShowFollowingManager(true)}
-                    aria-label={`Manage following, ${following.length} address${following.length === 1 ? '' : 'es'}`}
+                    class='corner-chip corner-chip--badges'
+                    onClick={() => setShowIssuers(true)}
+                    aria-label='Badges'
                   >
-                    {following.length > 0 && (
-                      <span class='corner-chip__addr'>{following.length}</span>
+                    {installedBadges.length > 0 && (
+                      <span class='issuer-stack__marks'>
+                        {installedBadges.slice(0, 3).map((certificate) => (
+                          <span class='issuer-stack__chip' key={certificate.resolver}>
+                            <CertificateBadge cid={certificate.badgeIconCid} size={20} />
+                          </span>
+                        ))}
+                        {installedBadges.length > 3 && (
+                          <span class='issuer-stack__chip issuer-stack__chip--more'>
+                            <Plus size={14} />
+                          </span>
+                        )}
+                      </span>
                     )}
-                    <span class='corner-chip__label'>following</span>
+                    <span class='corner-chip__label'>badges</span>
                   </button>
-                )}
+                </div>
+              )}
             </div>
 
             <div class='card back' id='card-back'>
@@ -713,6 +774,11 @@ export function App() {
           subjectDomain={certificateView?.subjectDomain ?? null}
           certificate={certificateView?.certificate ?? null}
           onDismiss={() => setCertificateModalOpen(false)}
+        />
+
+        <CertificateAuthorityManager
+          visible={showIssuers}
+          onDismiss={() => setShowIssuers(false)}
         />
 
         <Toast

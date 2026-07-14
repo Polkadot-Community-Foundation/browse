@@ -9,14 +9,16 @@ export interface UseMarkdownResult {
   failed: boolean
 }
 
-// How long to wait for the host preimage manager before giving up. Without an
-// embedding host the lookup never resolves, so this bounds the wait.
+// Without an embedding host the preimage lookup never resolves, so this bounds
+// the wait before the section is hidden.
 const PREIMAGE_TIMEOUT_MS = 3000
 
 /**
  * Fetch UTF-8 markdown stored at a `CIDv1(raw, blake2b-256)` via the host
- * preimage manager, the same path icons use. `failed` lets callers hide the
- * section when the host is absent or the lookup is interrupted.
+ * preimage manager, the same path icons use.
+ *
+ * `failed` lets callers hide the section when the host is absent, the lookup is
+ * interrupted, or the CID is malformed.
  */
 export function useMarkdownFromCid(cid: string | null): UseMarkdownResult {
   const [text, setText] = useState<string | null>(null)
@@ -35,14 +37,11 @@ export function useMarkdownFromCid(cid: string | null): UseMarkdownResult {
       else setText(value)
     }
 
-    let key: `0x${string}` | null = null
+    let key: `0x${string}`
     try {
       key = cidToBlake2b256DigestHex(cid)
     } catch {
-      // Legacy/malformed CID: nothing to look up.
-    }
-
-    if (!key) {
+      // Legacy or malformed CID: nothing to look up.
       finish(null)
       return
     }
