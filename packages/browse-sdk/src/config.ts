@@ -42,6 +42,9 @@ export const PREVIEWNET_ASSETHUB_GENESIS =
 export const SUMMIT_ASSETHUB_GENESIS =
   "0xf388dc6d6cdf6fb77eac3c4a91f31bc0c8642b142f1a757512ab7849f9f70660" as const;
 
+export const DEVNET_ASSETHUB_GENESIS =
+  "0xd6eec26135305a8ad257a20d003357284c8aa03d0bdb2b357ab0a22371e11ef2" as const;
+
 export const KNOWN_NETWORKS = {
   [PASEO_ASSETHUB_NEXT_V2_GENESIS]: {
     // PCF-owned suite on paseo-next AH-1500 (DotNS manifest
@@ -124,6 +127,32 @@ export const KNOWN_NETWORKS = {
     SCHEMA_ID: [1n],
     COMPLIANCE_SCHEMA_ID: 2n,
     ASSETHUB_RPCS: ["wss://summit-asset-hub-rpc.polkadot.io"],
+  },
+  [DEVNET_ASSETHUB_GENESIS]: {
+    // PCF public products devnet: standard Paseo Asset Hub (para 1000).
+    MULTICALL3: "0x929EdB8d61461c29d07deC834ef747EbFDcf0B74",
+    STORE_FACTORY: "0xD81DC23FAa69B311C1FC553Ea63798772e7D253D",
+    CONTENT_RESOLVER: "0x326bdE29315199c814B1c58b431D84D16EA5cE41",
+    REGISTRY: "0x527b08a640b527a3dae0C4BE04D7344E430B6E50",
+    REGISTRAR: "0x7f0dF075cc8B7FE7218E90fFC5a553450dB120F3",
+    PUBLISHER: [
+      {
+        version: "2.1.0",
+        address: "0xaab42efbe8ea4d4228c3a11e973f94c17b9a0f2c",
+      },
+    ],
+    SCHEMA_REGISTRY: "0xf8fccb815aabb57fb0210c686a923406ac4ef99d",
+    ATTESTATION_SERVICE: "0x1c8aeb620106dc05c74db5667e16042af6893352",
+    ATTESTATION_INDEX_RESOLVER: ["0xe61622e6b55ddacbe1d076382903fd02a7709ab6"],
+    TRUSTED_ATTESTER_RESOLVER: "0x075a4054e3b580540d2b908a7e339c7decd414dd",
+    TRUSTED_ATTESTER: "0xf8d186c352e2ea0b9c02c211525a20ddcb8cd2dd",
+    IPFS_GATEWAY: "https://bullet.sik.rocks",
+    SCHEMA_ID: [1n],
+    COMPLIANCE_SCHEMA_ID: 2n,
+    ASSETHUB_RPCS: ["wss://asset-hub-paseo-rpc.n.dwellir.com"],
+    PEOPLE_GENESIS:
+      "0xe6c30d6e148f250b887105237bcaa5cb9f16dd203bf7b5b9d4f1da7387cb86ec",
+    PEOPLE_RPCS: ["wss://people-paseo.rotko.net"],
   },
 } as const satisfies Record<string, NetworkConfig>;
 
