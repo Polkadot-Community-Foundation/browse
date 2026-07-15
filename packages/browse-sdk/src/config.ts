@@ -146,7 +146,7 @@ export const KNOWN_NETWORKS = {
     ATTESTATION_INDEX_RESOLVER: ["0xe61622e6b55ddacbe1d076382903fd02a7709ab6"],
     TRUSTED_ATTESTER_RESOLVER: "0x075a4054e3b580540d2b908a7e339c7decd414dd",
     TRUSTED_ATTESTER: "0xf8d186c352e2ea0b9c02c211525a20ddcb8cd2dd",
-    IPFS_GATEWAY: "https://bullet.sik.rocks",
+    IPFS_GATEWAY: "https://devnet-ipfs.api.polkadotcommunity.foundation",
     SCHEMA_ID: [1n],
     COMPLIANCE_SCHEMA_ID: 2n,
     ASSETHUB_RPCS: ["wss://asset-hub-paseo-rpc.n.dwellir.com"],
