@@ -19,6 +19,11 @@ const input: Record<string, string> =
       : entries
 
 export default defineConfig({
+  // Relative asset base: these SPAs are served content-addressed from an IPFS
+  // gateway SUBPATH (/ipfs/<cid>/) inside the in-app host loader, as well as at a
+  // domain root on dev-dot.li. An absolute base ("/") 404s the assets under the
+  // subpath (browse showed "Not Found"); "./" resolves correctly in both contexts.
+  base: './',
   // Load env from the repo root .env, shared with evm and deploy.
   envDir: resolve(__dirname, '..'),
   // Expose APP_* and NETWORK_* env to the client bundle.
