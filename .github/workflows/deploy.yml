@@ -275,9 +275,12 @@ jobs:
             echo "### Deployment completed but domain output is missing" >> $GITHUB_STEP_SUMMARY
             echo "CID \`${CID}\`" >> $GITHUB_STEP_SUMMARY
           else
+            # The devnet is served by its own dotli gateway (dev-dot.li).
+            GATEWAY="dot.li"
+            [ "$TARGET_ENV" = "devnet" ] && GATEWAY="dev-dot.li"
             echo "### ${DOMAIN}.dot (${TARGET_ENV})" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "Browser &nbsp; https://${DOMAIN}.dot.li" >> $GITHUB_STEP_SUMMARY
+            echo "Browser &nbsp; https://${DOMAIN}.${GATEWAY}" >> $GITHUB_STEP_SUMMARY
             echo "Desktop &nbsp; \`${DOMAIN}.dot\`" >> $GITHUB_STEP_SUMMARY
             echo "CID &nbsp; \`${CID}\`" >> $GITHUB_STEP_SUMMARY
           fi
