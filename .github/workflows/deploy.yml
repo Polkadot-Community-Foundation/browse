@@ -61,11 +61,6 @@ jobs:
       fail-fast: false
       matrix:
         target:
-          - env: paseo-next
-            display-name: Paseo Next (PCF)
-            genesis: '0xbf0488dbe9daa1de1c08c5f743e26fdc2a4ecd74cf87dd1b4b1eeb99ae4ef19f'
-            reuse-artifact: false
-            required: true
           - env: devnet
             display-name: Products Devnet (public Paseo AH 1000)
             genesis: '0xd6eec26135305a8ad257a20d003357284c8aa03d0bdb2b357ab0a22371e11ef2'
@@ -228,6 +223,12 @@ jobs:
           retry_wait_seconds: 30
           command: |
             export MNEMONIC='${{ secrets.MNEMONIC }}'
+            # Derive the Bulletin storage pool from the DEPLOYER mnemonic, not the
+            # public dev phrase. deploy.ts reads BULLETIN_POOL_MNEMONIC for the pool
+            # (falling back to DEV_PHRASE when unset) — those public accounts are not
+            # authorized on the Bulletin chains, so uploads fail. The deployer's pool
+            # (//deploy/N) is already authorized.
+            export BULLETIN_POOL_MNEMONIC="$MNEMONIC"
             export NODE_OPTIONS='--max-old-space-size=8192'
             export APP_DOTNS_DOMAIN='${{ steps.domain.outputs.value }}'
             cd app
