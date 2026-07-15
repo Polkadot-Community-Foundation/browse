@@ -62,7 +62,7 @@ jobs:
         run: npm install -g @polkadot-community-foundation/dotns-cli@0.7.3
 
       - name: Point domain at the released CID
-        run: dotns content set "$APP_DOTNS_DOMAIN" "${{ steps.cid.outputs.cid }}" --env summit
+        run: dotns content set "$APP_DOTNS_DOMAIN" "${{ steps.cid.outputs.cid }}" --env devnet
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
