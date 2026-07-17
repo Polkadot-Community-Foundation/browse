@@ -37,5 +37,15 @@ export default defineConfig({
       path: "./dist/spa",
       appVersion: [0, 1, 0],
     },
+    // The dashboard widget (desktop seeds `browse.dot` as the default card and
+    // resolves it via the `widget.<base>` subname — without this entry the card
+    // renders "Domain not found"). heights: 1=small, 2=medium, 4=large; the
+    // seeded default card is large (h:4).
+    {
+      kind: "widget",
+      path: "./dist/widget",
+      appVersion: [0, 1, 0],
+      dimensions: { height: [1, 2, 4] },
+    },
   ],
 });
