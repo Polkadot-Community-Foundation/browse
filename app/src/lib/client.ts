@@ -2,6 +2,7 @@ import { createPapiProvider, hostApi } from '@novasamatech/host-api-wrapper'
 import {
   type BrowseSdk,
   createBrowseSdk,
+  DEVNET_ASSETHUB_GENESIS,
   PASEO_ASSETHUB_NEXT_V2_GENESIS,
   PREVIEWNET_ASSETHUB_GENESIS,
   SUMMIT_ASSETHUB_GENESIS
@@ -26,7 +27,12 @@ import { ASSETHUB_GENESIS, DUMMY_ORIGIN, NETWORK } from './config'
 const descriptor = ({
   [PASEO_ASSETHUB_NEXT_V2_GENESIS]: paseohub,
   [PREVIEWNET_ASSETHUB_GENESIS]: previewnethub,
-  [SUMMIT_ASSETHUB_GENESIS]: summithub
+  [SUMMIT_ASSETHUB_GENESIS]: summithub,
+  // Products devnet is a standard Paseo Asset Hub (para 1000); its runtime API
+  // matches the paseo hub descriptor. Mapping it explicitly keeps the map
+  // exhaustive over NetworkGenesis (the bare `?? paseohub` fallback already
+  // resolved devnet to the same descriptor at runtime).
+  [DEVNET_ASSETHUB_GENESIS]: paseohub
 }[ASSETHUB_GENESIS] ?? paseohub) as typeof paseohub
 
 export type PaseoHubApi = TypedApi<typeof paseohub>

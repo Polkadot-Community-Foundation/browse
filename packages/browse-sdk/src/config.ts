@@ -26,6 +26,10 @@ export interface NetworkConfig extends NetworkAddresses {
   TRUSTED_ATTESTER_RESOLVER: `0x${string}`;
   TRUSTED_ATTESTER?: `0x${string}`;
   IPFS_GATEWAY: string;
+  /** Production web domain apps are reachable under, e.g. `paseo.li` for `browse.paseo.li`. */
+  primaryWebDomain: string;
+  /** Web domain that routes to a local dev instance, e.g. `paseoli.dev`. Equal to the primary when there is no separate dev host. */
+  secondaryWebDomain: string;
   SCHEMA_ID: readonly bigint[];
   COMPLIANCE_SCHEMA_ID: bigint;
   ASSETHUB_RPCS: readonly string[];
@@ -68,6 +72,11 @@ export const KNOWN_NETWORKS = {
     TRUSTED_ATTESTER_RESOLVER: "0x6a1421a1f0f1535e402d8655ea253e21dc5d9894",
     TRUSTED_ATTESTER: "0xF8d186c352e2ea0B9C02c211525A20DdcB8CD2dD",
     IPFS_GATEWAY: "https://paseo-bulletin-next-ipfs.polkadot.io",
+    primaryWebDomain: "paseo.li",
+    secondaryWebDomain: "paseoli.dev",
+    // PCF paseo-next attestation stack: single resolver → single schema (keep in
+    // sync with ATTESTATION_INDEX_RESOLVER length; upstream's [5n, 1n] is their
+    // own deployment, not ours).
     SCHEMA_ID: [1n],
     COMPLIANCE_SCHEMA_ID: 2n,
     ASSETHUB_RPCS: ["wss://paseo-asset-hub-next-rpc.polkadot.io"],
@@ -100,6 +109,8 @@ export const KNOWN_NETWORKS = {
     TRUSTED_ATTESTER_RESOLVER: "0xdc713ebf1028544a00225c8741eb698253c49302",
     TRUSTED_ATTESTER: "0x35Cdb23fF7fc86E8DCcd577CA309bFEA9c978D20",
     IPFS_GATEWAY: "https://previewnet.substrate.dev",
+    primaryWebDomain: "testnet.li",
+    secondaryWebDomain: "testnet.li",
     SCHEMA_ID: [6n, 1n],
     COMPLIANCE_SCHEMA_ID: 7n,
     ASSETHUB_RPCS: ["wss://previewnet.substrate.dev/asset-hub"],
@@ -124,6 +135,8 @@ export const KNOWN_NETWORKS = {
     ATTESTATION_INDEX_RESOLVER: ["0xa2ea4ab49bbe73f466f2fa0aeb50b39d34b55218"],
     TRUSTED_ATTESTER_RESOLVER: "0xde4a63079034230d71b5a5071571ed3fd95194e0",
     IPFS_GATEWAY: "https://summit-ipfs.polkadot.io",
+    primaryWebDomain: "dot.li",
+    secondaryWebDomain: "dot.li",
     SCHEMA_ID: [1n],
     COMPLIANCE_SCHEMA_ID: 2n,
     ASSETHUB_RPCS: ["wss://summit-asset-hub-rpc.polkadot.io"],
@@ -147,6 +160,9 @@ export const KNOWN_NETWORKS = {
     TRUSTED_ATTESTER_RESOLVER: "0x075a4054e3b580540d2b908a7e339c7decd414dd",
     TRUSTED_ATTESTER: "0xf8d186c352e2ea0b9c02c211525a20ddcb8cd2dd",
     IPFS_GATEWAY: "https://devnet-ipfs.api.polkadotcommunity.foundation",
+    // PCF products devnet gateway: apps resolve at <label>.dev-dot.li.
+    primaryWebDomain: "dev-dot.li",
+    secondaryWebDomain: "dev-dot.li",
     SCHEMA_ID: [1n],
     COMPLIANCE_SCHEMA_ID: 2n,
     ASSETHUB_RPCS: ["wss://asset-hub-paseo-rpc.n.dwellir.com"],
