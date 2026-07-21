@@ -19,6 +19,7 @@ export {
   activeAttestationResolver,
   activeSchemaId,
   attestationVersions,
+  DEVNET_ASSETHUB_GENESIS,
   isKnownGenesis,
   KNOWN_NETWORKS,
   PASEO_ASSETHUB_NEXT_V2_GENESIS,
