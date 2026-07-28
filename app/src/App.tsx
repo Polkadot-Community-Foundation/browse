@@ -3,9 +3,9 @@ import { type VNode } from 'preact'
 import { useDeferredValue } from 'preact/compat'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks'
 
-import { createAccountsProvider } from '@novasamatech/host-api-wrapper'
+import { getAccountsProvider, type HostSubscription } from '@parity/product-sdk/host'
 import { useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, ArrowUp, Bookmark, MoreVertical, Package, X } from 'lucide-preact'
+import { ArrowLeft, ArrowUp, Bookmark, Check, MoreVertical, Package, X } from 'lucide-preact'
 
 import { CategoryTabs } from './components/category-tabs'
 import { CertificateAuthorityManager } from './components/certificate-authority-manager'
@@ -21,6 +21,7 @@ import { Toast } from './components/toast'
 import { ToastContext } from './components/toast/context'
 import { createBookmark, deleteBookmark, readBookmarks } from './db/bookmarks'
 import { upsertLabel } from './db/labels'
+import { readSortMode, writeSortMode } from './db/sort-preference'
 import { useEvent } from './hooks/use-event'
 import { useFlipReorder } from './hooks/use-flip'
 import { useOverscrollSync } from './hooks/use-overscroll-sync'
@@ -44,7 +45,8 @@ import {
   type AppEntry,
   filterApps,
   type FilterMode,
-  isFilterMode
+  isFilterMode,
+  type SortMode
 } from './state/apps/types'
 import {
   useCertificateAuthorities,
@@ -62,6 +64,17 @@ const SEARCH_GROUP_PRIORITY: FilterMode[] = ['bookmarks', 'following', 'all']
 // Number of certificate-authority badge marks shown in the menu before the rest
 // collapse into a `+N` chip.
 const MENU_BADGE_LIMIT = 3
+
+// The sort options shown in the drilled Order by view, each with a short
+// description of what it does.
+const SORT_OPTIONS: { key: SortMode; name: string; description: string }[] = [
+  {
+    key: 'relevant',
+    name: 'Relevant',
+    description: 'Ranked by recommendations, badges, and how recently it was published.'
+  },
+  { key: 'new', name: 'New', description: 'The most recently published apps first.' }
+]
 
 // Minimum time the loading dots stay up after a mobile pull-refresh, so the
 // gesture has visible feedback even when the connection reset resolves instantly.
@@ -88,6 +101,7 @@ export function App() {
   const attestProduct = useAttestProduct()
 
   const [currentMode, setCurrentMode] = useState<FilterMode>('all')
+  const [sortMode, setSortMode] = useState<SortMode>('new')
   const [query, setQuery] = useState('')
   const [debouncedQuery, setDebouncedQuery] = useState('')
   const [bookmarkedApps, setBookmarkedApps] = useState<Set<string>>(() => new Set())
@@ -103,7 +117,7 @@ export function App() {
   // anchored popover. The back arrow returns to the menu.
   // The cross closes the whole popover.
   const [menuOpen, setMenuOpen] = useState(false)
-  const [view, setView] = useState<'menu' | 'following' | 'badges'>('menu')
+  const [view, setView] = useState<'menu' | 'following' | 'badges' | 'order'>('menu')
   // Fixed viewport coordinates for the popover, measured off the trigger on open.
   const [anchor, setAnchor] = useState<{ top: number; right: number } | null>(null)
   // The popover height, animated to the measured content height of the active
@@ -149,7 +163,7 @@ export function App() {
   const drillInnerRef = useRef<HTMLDivElement>(null)
   // Holds the last drilled view while collapsing back to the menu so its content
   // doesn't blank mid-transition.
-  const lastDrillRef = useRef<'following' | 'badges'>('following')
+  const lastDrillRef = useRef<'following' | 'badges' | 'order'>('following')
 
   // Derived state and query data. This is one dependency chain, not a reorderable
   // set: each query feeds a memo that feeds the next, so the kinds necessarily
@@ -266,7 +280,8 @@ export function App() {
       currentMode,
       bookmarkedApps,
       followingDisplay,
-      publishedLabels
+      publishedLabels,
+      sortMode
     )
     if (currentMode === 'all' && !deferredQuery.trim()) {
       return result.filter((app) => app.label !== SELF_LABEL)
@@ -278,7 +293,8 @@ export function App() {
     currentMode,
     bookmarkedApps,
     followingDisplay,
-    publishedLabels
+    publishedLabels,
+    sortMode
   ])
   orderSourceRef.current = filtered
   // While the user is typing, search ignores tabs.
@@ -384,11 +400,11 @@ export function App() {
   const coldStart = isLoading && filtered.length === 0 && !query
   const membershipKey = useMemo(
     () =>
-      `${currentMode}:${filtered
+      `${currentMode}:${sortMode}:${filtered
         .map((app) => app.label)
         .sort()
         .join(',')}`,
-    [currentMode, filtered]
+    [currentMode, sortMode, filtered]
   )
   const orderedLabels = useMemo(
     () => orderSourceRef.current.map((app) => app.label),
@@ -468,6 +484,10 @@ export function App() {
       setToastMessage(message)
     }
   )
+  const handleSort = useEvent((sort: SortMode) => {
+    setSortMode(sort)
+    void writeSortMode(sort)
+  })
   const handleFollow = useEvent((address: string, username?: string) => {
     follow(address, username)
     setFollowing((prev) => [...prev, { address, username }])
@@ -600,15 +620,22 @@ export function App() {
   }, [resolvedApp, queryClient])
   // Subscribe to account connection status.
   useEffect(() => {
-    const provider = createAccountsProvider()
-    const sub = provider.subscribeAccountConnectionStatus((status) => {
-      console.warn(
-        'debug network connection',
-        JSON.stringify({ event: 'accountConnectionStatus', status })
-      )
-      setSigned(status === 'connected')
+    let cancelled = false
+    let sub: HostSubscription | undefined
+    void getAccountsProvider().then((provider) => {
+      if (cancelled || !provider) return
+      sub = provider.subscribeAccountConnectionStatus((status) => {
+        console.warn(
+          'debug network connection',
+          JSON.stringify({ event: 'accountConnectionStatus', status })
+        )
+        setSigned(status === 'Connected')
+      })
     })
-    return () => sub.unsubscribe()
+    return () => {
+      cancelled = true
+      sub?.unsubscribe()
+    }
   }, [])
   useEffect(() => subscribeHostTheme(), [])
   useEffect(() => () => clearTimeout(pullFloorTimer.current), [])
@@ -625,6 +652,7 @@ export function App() {
       setBookmarkedAppsLoaded(true)
     })
     getFollowing().then(setFollowing)
+    readSortMode().then(setSortMode)
   }, [])
   useEffect(() => {
     if (!bookmarkedAppsLoaded || initialTabPicked.current) return
@@ -674,9 +702,14 @@ export function App() {
     const id = setTimeout(() => setDebouncedQuery(query), 500)
     return () => clearTimeout(id)
   }, [query])
-  // Always reopen on the menu view.
+  // Reopen on the menu view at its natural height. Clearing the measured height
+  // on close means the next open starts at the menu height instead of animating
+  // down from the taller Badges height.
   useEffect(() => {
-    if (!menuOpen) setView('menu')
+    if (!menuOpen) {
+      setView('menu')
+      setPopoverHeight(undefined)
+    }
   }, [menuOpen])
   // Light-dismiss the popover on Escape, or any scroll or resize so it never
   // floats detached from the trigger. Scroll is captured so a scroll inside the
@@ -916,7 +949,7 @@ export function App() {
             <div class='customize-popover-catcher' onClick={() => setMenuOpen(false)} />
             <div
               ref={popoverRef}
-              class='customize-popover'
+              class={`customize-popover${view === 'badges' ? ' customize-popover--wide' : ''}`}
               role='dialog'
               aria-label='Customize'
               style={{ top: anchor.top, right: anchor.right, height: popoverHeight }}
@@ -926,6 +959,16 @@ export function App() {
               >
                 <div class='customize-pane' aria-hidden={view !== 'menu'}>
                   <div class='customize-pane__inner' ref={menuInnerRef}>
+                    <button
+                      type='button'
+                      class='customize-nav-row'
+                      onClick={() => setView('order')}
+                    >
+                      <span class='customize-nav-row__label'>Order by</span>
+                      <span class='customize-nav-row__value'>
+                        {sortMode === 'new' ? 'New' : 'Relevant'}
+                      </span>
+                    </button>
                     <button
                       type='button'
                       class='customize-nav-row'
@@ -965,7 +1008,7 @@ export function App() {
                 </div>
                 <div class='customize-pane' aria-hidden={view === 'menu'}>
                   <div
-                    class='customize-pane__inner customize-pane__inner--drill'
+                    class={`customize-pane__inner customize-pane__inner--drill${drill === 'order' ? ' customize-pane__inner--fit' : ''}`}
                     ref={drillInnerRef}
                   >
                     <div class='customize-drill__header'>
@@ -978,7 +1021,11 @@ export function App() {
                         <ArrowLeft size={20} />
                       </button>
                       <span class='customize-drill__title'>
-                        {drill === 'following' ? 'Following' : 'Badges'}
+                        {drill === 'following'
+                          ? 'Following'
+                          : drill === 'order'
+                            ? 'Order by'
+                            : 'Badges'}
                       </span>
                       <button
                         type='button'
@@ -998,6 +1045,27 @@ export function App() {
                         onRemove={handleUnfollow}
                         onDismiss={() => setMenuOpen(false)}
                       />
+                    ) : drill === 'order' ? (
+                      <div class='order-panel' role='radiogroup' aria-label='Order by'>
+                        {SORT_OPTIONS.map((option) => (
+                          <button
+                            key={option.key}
+                            type='button'
+                            role='radio'
+                            aria-checked={sortMode === option.key}
+                            class='order-panel__option'
+                            onClick={() => handleSort(option.key)}
+                          >
+                            <span class='order-panel__text'>
+                              <span class='order-panel__name'>{option.name}</span>
+                              <span class='order-panel__desc'>{option.description}</span>
+                            </span>
+                            {sortMode === option.key && (
+                              <Check size={18} class='order-panel__check' />
+                            )}
+                          </button>
+                        ))}
+                      </div>
                     ) : (
                       <CertificateAuthorityManager embedded />
                     )}
