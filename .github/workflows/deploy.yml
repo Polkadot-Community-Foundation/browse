@@ -232,6 +232,25 @@ jobs:
           ln -sfn "$(npm root -g)/@polkadot-community-foundation/polkadot-app-deploy" \
             app/node_modules/@polkadot-community-foundation/polkadot-app-deploy
 
+      # On PR previews the deploy targets an ephemeral domain (browse-<branch>00.dot)
+      # whose `widget.<domain>` subname is never registered, so the product-manifest
+      # leg (which publishes the widget executable via setResolver on that subname)
+      # ALWAYS reverts (0x1648fd01) and red-walls every PR — even though the SPA
+      # itself deploys and verifies on-chain fine. The manifest/widget publish is
+      # not needed to preview the SPA. Moving the auto-discovered config aside makes
+      # the CLI skip the manifest leg (documented: a differently-named file is
+      # silently ignored), so a preview deploy is SPA-only and goes green iff the
+      # build uploads + sets contenthash — i.e. green ⟺ the deploy is healthy.
+      # main keeps the config → full manifest + widget publish (widget.browse.dot
+      # is registered, so it succeeds there).
+      - name: Skip product manifest on preview (SPA-only deploy)
+        if: github.ref != 'refs/heads/main' && steps.cache.outputs.cache-hit != 'true'
+        run: |
+          if [ -f app/polkadot-app-deploy.config.ts ]; then
+            mv app/polkadot-app-deploy.config.ts app/polkadot-app-deploy.config.ts.preview-disabled
+            echo "::notice::Preview deploy — SPA-only (product manifest/widget publish skipped; ephemeral preview subnames are not registered)."
+          fi
+
       - name: Deploy
         id: deploy
         if: steps.cache.outputs.cache-hit != 'true'
