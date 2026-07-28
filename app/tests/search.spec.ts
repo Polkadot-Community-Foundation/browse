@@ -1,11 +1,5 @@
 /**
  * Search E2E tests.
- *
- * Covers the search user stories in this suite:
- *   1. A match on the selected tab shows its card instantly.
- *   2. Searching deselects the tabs and shows the card in the unified list.
- *   3. A `.dot` name not loaded in any tab resolves to a card after a debounce.
- *   4. A name that resolves to nothing shows "No products matching" and a "Try X.dot anyway" action.
  */
 
 import type { BrowserContext } from '@playwright/test'
@@ -54,8 +48,9 @@ test.describe('Search', () => {
     // Then
     const card = frame.locator('.product-card[data-label="calculator"]')
     await expect(card).toBeVisible({ timeout: 15_000 })
-    await expect(frame.locator('.product-card')).toHaveCount(1)
-    // The `.dot` domain surfaces as the card's native hover tooltip.
+    await expect(
+      frame.locator('.product-card--placeholder, .product-card[data-label="calc"]')
+    ).toHaveCount(1)
     await expect(card).toHaveAttribute('title', 'Open calculator.dot')
 
     await page.close()
@@ -115,7 +110,7 @@ test.describe('Search', () => {
     await page.close()
   })
 
-  test('As an un/signed user, when I search for a name that does not resolve, I see "No products matching" and a "Try X.dot anyway"', async () => {
+  test('As an un/signed user, when I search for a name that does not resolve, I still get a card for the address', async () => {
     // Given
     const page = await context.newPage()
     await navigateToTestHost(page, host.url)
@@ -126,14 +121,24 @@ test.describe('Search', () => {
     await frame.waitForTimeout(DEBOUNCE_MS + 500)
 
     // Then
-    await expect(frame.locator('.empty-state__text')).toContainText(
-      'No products matching "nonexistent-xyz.dot"'
-    )
-    await expect(frame.locator('.empty-state__btn-ghost')).toContainText(
-      'Try nonexistent-xyz.dot anyway'
-    )
-    await expect(frame.locator('.empty-state__btn-ghost')).not.toContainText('.dot.dot')
-    await expect(frame.locator('.product-card')).toHaveCount(0)
+    const placeholder = frame.locator('.product-card--placeholder')
+    await expect(placeholder).toHaveCount(1)
+    await expect(placeholder.locator('.product-card__name')).toHaveText('nonexistent-xyz.dot')
+    await expect(placeholder.locator('.product-card__name')).not.toContainText('.dot.dot')
+    await expect(frame.locator('.empty-state')).toHaveCount(0)
+
+    // When
+    await frame.locator('.search-bar__input').fill('nonexistent-xyz.')
+
+    // Then
+    await expect(placeholder).toHaveCount(1)
+
+    // When
+    await frame.locator('.search-bar__input').fill('nonexistent-xyz-')
+
+    // Then
+    await expect(placeholder).toHaveCount(1)
+    await expect(placeholder.locator('.product-card__name')).toHaveText('nonexistent-xyz-.dot')
 
     await page.close()
   })

@@ -1,7 +1,7 @@
 import { type VNode } from 'preact'
 
 import { useDeferredValue } from 'preact/compat'
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks'
 
 import { getAccountsProvider, type HostSubscription } from '@parity/product-sdk/host'
 import { useQueryClient } from '@tanstack/react-query'
@@ -13,6 +13,7 @@ import { CertificateBadge } from './components/certificate-badge'
 import { CertificateModal } from './components/certificate-modal'
 import { FollowingManager } from './components/following-manager'
 import { FOLLOW_ICON, SEARCH_ICON } from './components/icons'
+import { PlaceholderCard } from './components/placeholder-card'
 import { ProductCardWithAttestation } from './components/product-card/product-card-with-attestation'
 import { ProductCardSkeleton } from './components/product-card/skeleton'
 import { RecommendPrompt } from './components/recommend-prompt'
@@ -28,6 +29,7 @@ import { useOverscrollSync } from './hooks/use-overscroll-sync'
 import { resetBrowseSdk } from './lib/client'
 import { SELF_LABEL } from './lib/config'
 import { setupDebugConsole } from './lib/debug'
+import { destinationFromQuery, typedLabel } from './lib/destination'
 import { useDomainSuggestions } from './lib/domains-snapshot'
 import { navigateToDomain } from './lib/navigate'
 import { clearPendingRecommend, readPendingRecommends } from './lib/pending-recommend'
@@ -80,6 +82,9 @@ const SORT_OPTIONS: { key: SortMode; name: string; description: string }[] = [
 // gesture has visible feedback even when the connection reset resolves instantly.
 const PULL_REFRESH_MIN_VISIBLE_MS = 2000
 
+// Longest the loading dots stay up, whatever the sync is still doing.
+const SYNC_DOTS_MAX_VISIBLE_MS = 3000
+
 /**
  * Render a snapshot-only search result as a product card, lazily resolving its
  * name and icon (the snapshot carries only the `.dot` domain). Published entries
@@ -127,6 +132,8 @@ export function App() {
   const [suggestionPrefix, setSuggestionPrefix] = useState('')
   // Touch devices get a minimum-visible hold on the dots after a pull-refresh.
   const [pullRefreshFloor, setPullRefreshFloor] = useState(false)
+  // True once the dots have been up for their whole allowance.
+  const [syncDotsExpired, setSyncDotsExpired] = useState(false)
   // Nonce that commits the current display order into a sticky snapshot.
   const [orderNonce, setOrderNonce] = useState(0)
   const [certificateModalOpen, setCertificateModalOpen] = useState(false)
@@ -233,6 +240,27 @@ export function App() {
     () => certificateAuthorities.filter((ca) => selectedResolvers.has(ca.resolver.toLowerCase())),
     [certificateAuthorities, selectedResolvers]
   )
+  /**
+   * Trim an entry to what this user should see.
+   *
+   * Badges from selected authorities only, since hydration caches them all, plus
+   * the recommend state this identity already holds. Every card goes through this,
+   * including the one built from a resolved address, or a typed address would show
+   * badges the user switched off and a recommend button that forgot itself.
+   */
+  const scopeToUser = useCallback(
+    (app: AppEntry): AppEntry => {
+      const visible = app.certificates.filter((c) =>
+        selectedResolvers.has(c.resolver.toLowerCase())
+      )
+      const scoped =
+        visible.length === app.certificates.length ? app : { ...app, certificates: visible }
+      return myRecommendations.has(scoped.label) && !scoped.hasUserAttested
+        ? { ...scoped, hasUserAttested: true }
+        : scoped
+    },
+    [selectedResolvers, myRecommendations]
+  )
   const appsForFiltering = useMemo(() => {
     const byLabel = new Map<string, AppEntry>()
     for (const app of allApps) byLabel.set(app.label, app)
@@ -256,20 +284,8 @@ export function App() {
     }
     for (const label of followingDisplay) addLabel(label)
     for (const label of bookmarkedApps) addLabel(label)
-    // The recommend button is active when this identity recommended the app,
-    // preserving any optimistic `hasUserAttested` from a just-submitted toggle.
-    return [...byLabel.values()].map((app) => {
-      // Show only badges from selected authorities. Hydration cached them all.
-      const visible = app.certificates.filter((c) =>
-        selectedResolvers.has(c.resolver.toLowerCase())
-      )
-      const scoped =
-        visible.length === app.certificates.length ? app : { ...app, certificates: visible }
-      return myRecommendations.has(scoped.label) && !scoped.hasUserAttested
-        ? { ...scoped, hasUserAttested: true }
-        : scoped
-    })
-  }, [allApps, followingDisplay, bookmarkedApps, labelDb, myRecommendations, selectedResolvers])
+    return [...byLabel.values()].map(scopeToUser)
+  }, [allApps, followingDisplay, bookmarkedApps, labelDb, scopeToUser])
   // Labels from the Publisher set, used to scope the All tab to published apps
   // only (bookmarked/followed entries belong to their own tabs).
   const publishedLabels = useMemo(() => new Set(allApps.map((app) => app.label)), [allApps])
@@ -327,19 +343,39 @@ export function App() {
     const exactSelf = normalizedQuery === SELF_LABEL
     return exactSelf ? matches : matches.filter((app) => app.label !== SELF_LABEL)
   }, [deferredQuery, appsForFiltering, bookmarkedApps, followingDisplay, publishedLabels])
-  const tryLabel = query
-    .trim()
-    .toLowerCase()
-    .replace(/\.dot$/, '')
-  const resolverLabel = debouncedQuery
-    .trim()
-    .toLowerCase()
-    .replace(/\.dot$/, '')
-  const shouldResolve = debouncedQuery === query && resolverLabel.length >= 3
-  const { data: resolvedApp, isFetching: resolverFetching } = useResolveLabel(
-    resolverLabel,
-    shouldResolve
+  // Non-null is the whole condition for showing a card, so navigating never
+  // depends on what search or the network returned.
+  const destination = destinationFromQuery(query)
+  const debouncedDestination = destinationFromQuery(debouncedQuery)
+  // The local entry for the address, if we hold one at all. `published` is the
+  // finished article and needs no lookup. `cached` may be a bookmarked or followed
+  // label carrying a name and icon but no content, which is still far better than a
+  // placeholder while the resolver runs.
+  const indexed = useMemo(() => {
+    const entry = destination
+      ? (appsForFiltering.find((app) => app.label === destination) ?? null)
+      : null
+    return { published: entry?.contentHash ? entry : null, cached: entry }
+  }, [destination, appsForFiltering])
+  // No length floor. `a.dot` is a registerable name, and gating the lookup would
+  // leave a short address stuck as a placeholder forever. One read per settled
+  // query, cached for a minute, so the cost is bounded by the debounce.
+  const canResolve = destination !== null && indexed.published === null
+  const destinationSettled = destination !== null && debouncedDestination === destination
+  const { data: resolvedDestination } = useResolveLabel(
+    debouncedDestination ?? '',
+    canResolve && destinationSettled
   )
+  // A resolution describes the debounced address, so a card showing a newer one
+  // must not wear it.
+  const resolvedApp =
+    canResolve && destinationSettled && resolvedDestination
+      ? scopeToUser(resolvedDestination)
+      : null
+  // Best card we can put at the front, in descending order of what we know. The
+  // cached entry ranks last but still beats a placeholder, and ranking it below the
+  // resolver lets a lookup upgrade it.
+  const frontApp = indexed.published ?? resolvedApp ?? indexed.cached
   // Domain-snapshot suggestion prefix: the raw query (trailing `.dot` stripped,
   // lowercased), debounced ~150ms into suggestionPrefix by an effect below. A
   // local snapshot lookup, independent of the 500ms debouncedQuery.
@@ -351,16 +387,15 @@ export function App() {
   // Merge the search results shown while typing: published matches (with real
   // metadata and icons) first, then every other `.dot` name from the snapshot
   // as a minimal entry (Identicon and `<label>.dot`). Deduped by label.
+  //
+  // The card at the front owns the typed address, so the list never repeats it,
+  // whichever of the three sources it arrived from.
   const searchEntries = useMemo<{ app: AppEntry; snapshotOnly: boolean }[]>(() => {
     if (!searchMatches) return []
-    const published = [
-      ...searchMatches,
-      ...(resolvedApp && !searchMatches.some((app) => app.label === resolvedApp.label)
-        ? [resolvedApp]
-        : [])
-    ]
+    const published = searchMatches.filter((app) => app.label !== destination)
     const known = new Set(published.map((app) => app.label))
     known.add(SELF_LABEL)
+    if (destination) known.add(destination)
     const snapshotOnly = domainSuggestions
       .filter((label) => !known.has(label))
       .map((label) => ({
@@ -379,14 +414,7 @@ export function App() {
         snapshotOnly: true
       }))
     return [...published.map((app) => ({ app, snapshotOnly: false })), ...snapshotOnly]
-  }, [searchMatches, resolvedApp, domainSuggestions])
-  // True while a search is in flight: typing hasn't settled (debounce or
-  // useDeferredValue), or the on-chain resolver is fetching.
-  const isSearching =
-    query.length > 0 &&
-    (deferredQuery !== query ||
-      debouncedQuery !== query ||
-      (resolverLabel.length >= 3 && resolverFetching))
+  }, [searchMatches, destination, domainSuggestions])
   const isLoading =
     currentMode === 'bookmarks'
       ? false
@@ -395,7 +423,9 @@ export function App() {
         : allFetching
   // Loading dots track the live sync. A mobile pull-refresh additionally holds
   // them for a minimum window so the gesture doesn't flash.
-  const showSyncDots = (isLoading && !query && filtered.length > 0) || pullRefreshFloor
+  const syncDotsWanted = (isLoading && !query && filtered.length > 0) || pullRefreshFloor
+  // Capped, so they never outstay {@link SYNC_DOTS_MAX_VISIBLE_MS}.
+  const showSyncDots = syncDotsWanted && !syncDotsExpired
   // Showing skeletons.
   const coldStart = isLoading && filtered.length === 0 && !query
   const membershipKey = useMemo(
@@ -412,12 +442,15 @@ export function App() {
   )
   // Apply the sticky order to the live entries, so counts stay optimistic while
   // positions hold until commit.
+  // The card at the front owns the typed address here too. `searchEntries` is
+  // derived from the debounced query, so on the first keystroke this list is what
+  // still renders, and without the filter it would repeat that label for a frame.
   const orderedFiltered = useMemo(() => {
     const byLabel = new Map(filtered.map((app) => [app.label, app]))
     return orderedLabels
       .map((label) => byLabel.get(label))
-      .filter((app): app is AppEntry => app != null)
-  }, [orderedLabels, filtered])
+      .filter((app): app is AppEntry => app != null && app.label !== destination)
+  }, [orderedLabels, filtered, destination])
   // Key off what renders, so a search reorder glides under one pass.
   const flipKey = useMemo(() => {
     if (searchMatches) {
@@ -597,6 +630,17 @@ export function App() {
     setView(next)
     setMenuOpen(true)
   }
+
+  // Start the dots allowance when they go up, and reset it when they come down so
+  // the next refresh gets a full window of its own.
+  useEffect(() => {
+    if (!syncDotsWanted) {
+      setSyncDotsExpired(false)
+      return
+    }
+    const id = setTimeout(() => setSyncDotsExpired(true), SYNC_DOTS_MAX_VISIBLE_MS)
+    return () => clearTimeout(id)
+  }, [syncDotsWanted])
 
   // Debounce the snapshot-suggestion prefix ~150ms behind the raw query.
   useEffect(() => {
@@ -818,6 +862,7 @@ export function App() {
                   value={query}
                   onInput={handleSearchInput}
                   onCancel={() => setQuery('')}
+                  onSubmit={destination ? () => navigateToDomain(destination) : null}
                 />
               </div>
               {!searchMatches && (
@@ -845,6 +890,19 @@ export function App() {
               )}
 
               <div class='app-list' id='app-list' ref={appListRef}>
+                {/* The typed address, first in the list and otherwise an ordinary
+                    card. A placeholder until it resolves to something published.
+                    Never conditional on the search result. */}
+                {destination &&
+                  (frontApp ? (
+                    renderCard(frontApp, -1)
+                  ) : (
+                    <PlaceholderCard
+                      label={typedLabel(query)}
+                      target={destination}
+                      onGo={navigateToDomain}
+                    />
+                  ))}
                 {coldStart ? (
                   Array.from({ length: 6 }, (_, i) => <ProductCardSkeleton key={`sk-${i}`} />)
                 ) : emptyAll ? (
@@ -895,29 +953,18 @@ export function App() {
                       renderCard(app, -1)
                     )
                   )
-                ) : searchMatches ? (
-                  isSearching ? (
-                    <div class='empty-state'>
-                      <p class='empty-state__text'>Searching for "{query}"…</p>
-                      <div class='loading-dots loading-dots--inline'>
-                        <span class='loading-dots__dot' />
-                        <span class='loading-dots__dot' />
-                        <span class='loading-dots__dot' />
-                      </div>
-                    </div>
-                  ) : (
-                    <div class='empty-state'>
-                      <div class='empty-state__icon'>{SEARCH_ICON}</div>
-                      <p class='empty-state__text'>No products matching "{query}"</p>
-                      <button
-                        class='empty-state__btn-ghost'
-                        onClick={() => navigateToDomain(tryLabel)}
-                      >
-                        Try {tryLabel}.dot anyway
-                      </button>
-                    </div>
-                  )
-                ) : (
+                ) : searchMatches && !destination ? (
+                  // Only when the text names no address, since a card above already
+                  // answers. No in-flight variant either: swapping the list for a
+                  // progress message read as the results being taken away.
+                  <div class='empty-state'>
+                    <div class='empty-state__icon'>{SEARCH_ICON}</div>
+                    <p class='empty-state__text'>
+                      No results for
+                      <span class='empty-state__query'>"{query}"</span>
+                    </p>
+                  </div>
+                ) : searchMatches ? null : (
                   orderedFiltered.map((app, i) => renderCard(app, i))
                 )}
               </div>
