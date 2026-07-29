@@ -6,17 +6,9 @@ interface SearchBarProps {
   onInput: (value: string) => void
   placeholder?: string
   onCancel?: () => void
-  /** Where submitting goes, or null when the text names no address. Also sets the return key. */
-  onSubmit?: (() => void) | null
 }
 
-export function SearchBar({
-  value,
-  onInput,
-  placeholder = 'Search',
-  onCancel,
-  onSubmit
-}: SearchBarProps) {
+export function SearchBar({ value, onInput, placeholder = 'Search', onCancel }: SearchBarProps) {
   const placeholderRef = useRef<HTMLSpanElement>(null)
   const rootRef = useRef<HTMLDivElement>(null)
   const [focused, setFocused] = useState(false)
@@ -39,13 +31,7 @@ export function SearchBar({
     .join(' ')
 
   return (
-    <form
-      class='search-bar-row'
-      onSubmit={(e) => {
-        e.preventDefault()
-        onSubmit?.()
-      }}
-    >
+    <div class='search-bar-row'>
       <div class={classes} ref={rootRef}>
         <svg class='search-bar__icon' width='16' height='16' viewBox='0 0 16 16' fill='none'>
           <circle cx='7' cy='7' r='5.5' stroke='currentColor' stroke-width='1.3' />
@@ -64,15 +50,22 @@ export function SearchBar({
           type='text'
           autocomplete='off'
           spellcheck={false}
-          enterkeyhint={onSubmit ? 'go' : 'search'}
+          enterkeyhint='done'
           value={value}
           onInput={(e) => onInput((e.target as HTMLInputElement).value)}
+          onKeyDown={(e) => {
+            // Return means done typing, nothing more. Results already follow every
+            // keystroke, so the only thing left to want is the keyboard out of the
+            // way, and blurring is what closes it on a phone.
+            if (e.key !== 'Enter') return
+            e.preventDefault()
+            e.currentTarget.blur()
+          }}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
         />
       </div>
       {onCancel && (
-        // Not a submit button. Inside a form the default type would navigate.
         <button
           type='button'
           class='search-bar-row__cancel'
@@ -83,6 +76,6 @@ export function SearchBar({
           Cancel
         </button>
       )}
-    </form>
+    </div>
   )
 }
