@@ -1,0 +1,48 @@
+{
+  "name": "@parity/browse-snapshots",
+  "version": "0.1.0-rc.1",
+  "description": "Internal. Compiled into @parity/browse-sdk, never published on its own.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "sideEffects": false,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/paritytech/browse.git",
+    "directory": "packages/snapshots"
+  },
+  "homepage": "https://github.com/paritytech/browse/tree/main/packages/snapshots#readme",
+  "bugs": {
+    "url": "https://github.com/paritytech/browse/issues"
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@noble/hashes": "^2.0.1",
+    "@polkadot-labs/hdkd": "^0.0.27",
+    "@polkadot-labs/hdkd-helpers": "^0.0.28",
+    "@polkadot/api": "^16.5.4",
+    "polkadot-api": "^2.1.4",
+    "viem": "^2.50.4"
+  },
+  "peerDependencies": {
+    "@parity/product-sdk": "^0.19.1"
+  },
+  "peerDependenciesMeta": {
+    "@parity/product-sdk": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@parity/product-sdk": "^0.19.1",
+    "multiformats": "^14.0.2",
+    "typescript": "^5.4.0",
+    "vitest": "^4.1.0"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "private": true
+}

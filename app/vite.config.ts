@@ -26,6 +26,10 @@ export default defineConfig({
   plugins: [preact(), nodePolyfills()],
   resolve: {
     alias: {
+      // Subpaths must precede the bare entry. Alias keys match by prefix, so the
+      // bare one would otherwise swallow them and resolve to nothing.
+      '@parity/browse-sdk/snapshots/host': resolve(__dirname, '../packages/snapshots/src/host.ts'),
+      '@parity/browse-sdk/snapshots': resolve(__dirname, '../packages/snapshots/src/index.ts'),
       '@parity/browse-sdk': resolve(__dirname, '../packages/browse-sdk/src/index.ts')
     }
   },

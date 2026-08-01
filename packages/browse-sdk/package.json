@@ -1,6 +1,6 @@
 {
   "name": "@parity/browse-sdk",
-  "version": "0.1.0-rc.1",
+  "version": "0.1.0-rc.2",
   "description": "Client SDK for the publishing registry. Read published apps, widgets, and workers via any papi-compatible JsonRpcProvider.",
   "license": "Apache-2.0",
   "type": "module",
@@ -14,14 +14,34 @@
   "bugs": {
     "url": "https://github.com/paritytech/browse/issues"
   },
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "./dist/browse-sdk/src/index.js",
+  "types": "./dist/browse-sdk/src/index.d.ts",
   "exports": {
     "./package.json": "./package.json",
     ".": {
       "#/source": "./src/index.ts",
-      "types": "./dist/index.d.ts",
-      "default": "./dist/index.js"
+      "types": "./dist/browse-sdk/src/index.d.ts",
+      "default": "./dist/browse-sdk/src/index.js"
+    },
+    "./snapshots": {
+      "#/source": "./src/snapshots.ts",
+      "types": "./dist/browse-sdk/src/snapshots.d.ts",
+      "default": "./dist/browse-sdk/src/snapshots.js"
+    },
+    "./snapshots/host": {
+      "#/source": "./src/snapshots-host.ts",
+      "types": "./dist/browse-sdk/src/snapshots-host.d.ts",
+      "default": "./dist/browse-sdk/src/snapshots-host.js"
+    },
+    "./snapshots/publish": {
+      "#/source": "./src/snapshots-publish.ts",
+      "types": "./dist/browse-sdk/src/snapshots-publish.d.ts",
+      "default": "./dist/browse-sdk/src/snapshots-publish.js"
+    },
+    "./crawl": {
+      "#/source": "./src/crawl.ts",
+      "types": "./dist/browse-sdk/src/crawl.d.ts",
+      "default": "./dist/browse-sdk/src/crawl.js"
     }
   },
   "files": [
@@ -46,11 +66,35 @@
     "viem": "^2.50.4"
   },
   "devDependencies": {
+    "@parity/product-sdk": "^0.19.1",
     "@polkadot-api/ws-provider": "^0.9.0",
+    "@polkadot-labs/hdkd": "^0.0.27",
+    "@polkadot-labs/hdkd-helpers": "^0.0.28",
+    "@polkadot/api": "^16.5.4",
     "typescript": "^5.4.0",
     "vitest": "^4.1.0"
   },
   "engines": {
     "node": ">=22"
+  },
+  "peerDependencies": {
+    "@parity/product-sdk": "^0.19.1",
+    "@polkadot-labs/hdkd": "^0.0.27",
+    "@polkadot-labs/hdkd-helpers": "^0.0.28",
+    "@polkadot/api": "^16.5.4"
+  },
+  "peerDependenciesMeta": {
+    "@parity/product-sdk": {
+      "optional": true
+    },
+    "@polkadot-labs/hdkd": {
+      "optional": true
+    },
+    "@polkadot-labs/hdkd-helpers": {
+      "optional": true
+    },
+    "@polkadot/api": {
+      "optional": true
+    }
   }
 }

@@ -1,0 +1,45 @@
+name: Unit Tests
+
+on:
+  push:
+    branches: [main]
+    paths: ['packages/**']
+  pull_request:
+    branches: [main]
+    paths: ['packages/**']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: unit-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit-tests:
+    name: ${{ matrix.package }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        package: [browse-sdk, snapshots]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - run: bun install --frozen-lockfile
+
+      - name: Build browse-sdk
+        working-directory: packages/browse-sdk
+        run: bun run build
+
+      - name: Type check
+        working-directory: packages/${{ matrix.package }}
+        run: bun run typecheck
+
+      - name: Test
+        working-directory: packages/${{ matrix.package }}
+        run: bun run test
