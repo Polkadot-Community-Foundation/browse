@@ -10,9 +10,9 @@ import { LOCALHOST_SELF_DOTNS } from '../src/lib/config'
 const PORT = process.env.PORT ?? '5173'
 const APP_URL = `http://localhost:${PORT}`
 
-// smalltava.05
+// smalltava.08
 export const DEV_PHRASE =
-  'learn antenna mansion inform acoustic laptop worth hunt season model senior thrive'
+  'give social ivory used surprise dignity mother boss sword lunar giggle icon'
 
 /** Returns the run-unique id shared by the wallet path and username, or undefined locally. */
 function runId(): string | undefined {
@@ -20,7 +20,7 @@ function runId(): string | undefined {
 }
 
 /**
- * Derives the wallet path for the per-run identity, off `smalltava.05`. Each CI
+ * Derives the wallet path for the per-run identity, off `smalltava.08`. Each CI
  * run gets a unique identity so a dead account leaving a stuck one-per-identity
  * lock on one run never blocks another, and concurrent runs never contend on the
  * same identity. Locally it falls back to the bare wallet, where a single actor
@@ -38,12 +38,12 @@ export function identityUri(): string {
 
 /**
  * Returns the DotNS username the per-run identity reveals on a first
- * recommendation. Locally it falls back to the real `smalltava.05`, which the
+ * recommendation. Locally it falls back to the real `smalltava.08`, which the
  * master identity already owns.
  */
 export function identityUsername(): string {
   const id = runId()
-  return id ? `smalltava.05.run${id}` : 'smalltava.05'
+  return id ? `smalltava.08.run${id}` : 'smalltava.08'
 }
 
 type Account = import('@parity/host-api-test-sdk').Account

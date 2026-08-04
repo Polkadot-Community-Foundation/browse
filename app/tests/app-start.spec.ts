@@ -353,7 +353,7 @@ test.describe('App Start', () => {
     test('As a user, when I bookmark a searched app, its name and icon survive a background synchronization after TTL', async () => {
       test.setTimeout(120_000)
       const page = await context.newPage()
-      const target = 'web3summit-admin'
+      const target = 'host-playground44'
 
       // Given
       await navigateToTestHost(page, host.url)
@@ -362,7 +362,7 @@ test.describe('App Start', () => {
       await frame.locator('.search-bar__input').fill(target)
       const card = frame.locator(`.product-card[data-label="${target}"]`)
       await expect(card).toBeVisible({ timeout: 20_000 })
-      await expect(card.locator('.product-card__name')).toHaveText('Web3 Summit Admin')
+      await expect(card.locator('.product-card__name')).toHaveText('Host Playground')
       await card.locator('.product-card__bookmark').click()
       await page.waitForTimeout(500)
 
@@ -389,7 +389,7 @@ test.describe('App Start', () => {
       await frame.locator('.category-tab', { hasText: 'Bookmarks' }).click()
       const bookmarked = frame.locator(`.product-card[data-label="${target}"]`)
       await expect(bookmarked).toBeVisible()
-      await expect(bookmarked.locator('.product-card__name')).toHaveText('Web3 Summit Admin')
+      await expect(bookmarked.locator('.product-card__name')).toHaveText('Host Playground')
 
       await page.close()
     })
