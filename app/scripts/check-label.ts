@@ -8,6 +8,7 @@
  *   cd app && GENESIS=paseo bun scripts/check-label.ts foo
  */
 
+import { keccak_256 } from '@noble/hashes/sha3.js'
 import {
   createBrowseSdk,
   decodeAddress,
@@ -21,16 +22,16 @@ import {
   encodeText,
   labelhashToTokenId,
   namehash,
-  PASEO_ASSETHUB_NEXT_V2_GENESIS,
+  nameWithTld,
+  PASEONEXTV2_ASSETHUB_GENESIS,
   PREVIEWNET_ASSETHUB_GENESIS,
   selectNetwork
 } from '@parity/browse-sdk'
-import { keccak_256 } from '@noble/hashes/sha3.js'
 import { getWsProvider } from 'polkadot-api/ws'
 
 const label = process.argv[2] ?? 'host-playground33'
 const genesis =
-  process.env.GENESIS === 'paseo' ? PASEO_ASSETHUB_NEXT_V2_GENESIS : PREVIEWNET_ASSETHUB_GENESIS
+  process.env.GENESIS === 'paseo' ? PASEONEXTV2_ASSETHUB_GENESIS : PREVIEWNET_ASSETHUB_GENESIS
 const network = selectNetwork(genesis)
 const WS_URL = process.env.WS_URL ?? network.ASSETHUB_RPCS[0]
 
@@ -55,11 +56,11 @@ function labelhashOf(s: string): `0x${string}` {
   return out as `0x${string}`
 }
 
-const node = namehash(`${label}.dot`)
+const node = namehash(nameWithTld(label, network.TLD))
 const lh = labelhashOf(label)
-const tokenId = labelhashToTokenId(lh)
+const tokenId = labelhashToTokenId(lh, network.TLD)
 
-console.log(`\nLabel:     ${label}.dot`)
+console.log(`\nLabel:     ${nameWithTld(label, network.TLD)}`)
 console.log(`namehash:  ${node}`)
 console.log(`labelhash: ${lh}`)
 console.log(`tokenId:   ${tokenId}`)
