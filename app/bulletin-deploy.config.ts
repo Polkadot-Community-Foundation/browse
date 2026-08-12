@@ -1,14 +1,24 @@
 import { defineConfig } from 'bulletin-deploy'
 
+import { isKnownGenesis, selectNetwork } from '../packages/browse-sdk/src/config'
+
 declare const process: { env?: Record<string, string | undefined> }
 
-// Set APP_DOTNS_DOMAIN to the bare label, e.g. `browse`.
+// Set APP_DOTNS_DOMAIN to the bare label, e.g. `browse`. The suffix comes from
+// the network NETWORK_GENESIS_HASH names.
 const domain = process.env?.APP_DOTNS_DOMAIN
 if (!domain) throw new Error('APP_DOTNS_DOMAIN is required')
-const label = domain.toLowerCase().replace(/\.dot$/, '')
+
+const genesis = process.env?.NETWORK_GENESIS_HASH
+if (!genesis || !isKnownGenesis(genesis)) {
+  throw new Error(`NETWORK_GENESIS_HASH must name a known network, got '${genesis ?? ''}'`)
+}
+const { TLD } = selectNetwork(genesis)
+
+const label = domain.toLowerCase().replace(new RegExp(`\\.${TLD}$`), '')
 
 export default defineConfig({
-  domain: `${label}.dot`,
+  domain: `${label}.${TLD}`,
   displayName: 'Browse',
   description: 'Home for privacy apps.',
   icon: { path: './icon.png', format: 'png' },
