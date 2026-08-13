@@ -19,8 +19,10 @@
 The backend layer behind Browse. A publishing registry where anyone can publish a product, and any client can read the published set back.
 
 Labels are published through [Publisher.sol](src/Publisher.sol), which records each published label
-and gates who can publish with proof-of-personhood and per-account rate limits. Attestations on
-products are indexed by resolvers bound to an attestation service.
+and gates who can publish. A publisher submits a ring-membership proof of personhood over
+`getPublishDigest(publisher, labelhash)`, which covers the chain, the registry, the publisher, and the
+label, so a proof is spendable once for one name. The daily rate limit is counted per person rather
+than per address. Attestations on products are indexed by resolvers bound to an attestation service.
 [RecipientAndAttesterIndexResolver.sol](src/RecipientAndAttesterIndexResolver.sol) groups attestation
 IDs by recipient, schema, and attester so the app can query them efficiently. It also gates new
 attestations on a bound identity: a product account first proves, once, that an identity authorized
@@ -45,6 +47,14 @@ Genesis `0x23e730eb1c6fecae09c917439a5038cb6122d0d48980e8b9bbf0ff56f94a2ca6`.
 
 TLD `.paseo`.
 
+Publisher 3.0.0:
+
+* **Publisher**:
+  * Contract: `0x34890368dFc109C0b905EA96035A850E3e5C3a2f`
+  * Deployment and ABI: [Publisher.sol](src/Publisher.sol)
+  * Second in the SDK `PUBLISHER` array. Reads union every entry, writes go to the first, and this
+    one starts empty while 2.2.0 still holds the published set.
+
 Version 2.2.0:
 
 * **Publisher**:
@@ -61,6 +71,16 @@ Version 2.2.0:
 #### Previewnet AssetHub
 
 Genesis `0x4d11c803cc6921429e3876638977ad006ea1bba8cd3976a0bca2f164e7026210`.
+
+TLD `.dot`.
+
+Publisher 3.0.0:
+
+* **Publisher**:
+  * Contract: `0x34890368dFc109C0b905EA96035A850E3e5C3a2f`
+  * Deployment and ABI: [Publisher.sol](src/Publisher.sol)
+  * Second in the SDK `PUBLISHER` array. Reads union every entry, writes go to the first, and this
+    one starts empty while 2.1.0 still holds the published set.
 
 Version 2.1.0:
 
