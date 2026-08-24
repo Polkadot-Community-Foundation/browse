@@ -78,6 +78,16 @@ export {
   tryDecode
 } from './abi/index.js'
 export { nameWithTld, stripTld } from './name.js'
+
+export {
+  fullPersonRingVrfEntropy,
+  lightPersonRingVrfEntropy,
+  deriveRingVrfEntropy,
+  ringVrfRootEntropy,
+  junctionChainCode,
+  indexBytes,
+  INDEX_MAGIC
+} from './personhood-keys.js'
 export type {
   AggregateResult,
   DecodedAttestation,
