@@ -95,7 +95,7 @@ export const KNOWN_NETWORKS = {
     REGISTRY: '0xf34054fd76BbF85f216cf9908226D5f0A72E50CA',
     REGISTRAR: '0x4f06E818Ba3d987704fd91cf3d868E4b019106Ab',
     CREATE3_FACTORY: '0x8533c79E058c5a6489CAFeCA86dc600E029D75f5',
-    TLD: 'test',
+    TLD: 'testnet',
     PUBLISHER: [
       {
         version: '3.0.0',
@@ -110,7 +110,7 @@ export const KNOWN_NETWORKS = {
     IPFS_GATEWAY: 'https://previewnet.substrate.dev',
     PRIMARY_WEB_DOMAIN: 'testnet.li',
     SECONDARY_WEB_DOMAIN: 'testnet.li',
-    SNAPSHOT_POINTER_DOMAIN: 'browse.test',
+    SNAPSHOT_POINTER_DOMAIN: 'browse.testnet',
     SCHEMA_ID: [1n],
     COMPLIANCE_SCHEMA_ID: 2n,
     ASSETHUB_RPCS: ['wss://previewnet.substrate.dev/asset-hub'],
