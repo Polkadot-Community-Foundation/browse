@@ -6,7 +6,7 @@ import { defineConfig } from 'bulletin-deploy'
  * each. `MANIFEST_DOMAIN` follows the convention host-playground uses.
  */
 export default defineConfig({
-  domain: process.env.MANIFEST_DOMAIN ?? 'chess-clock.test',
+  domain: process.env.MANIFEST_DOMAIN ?? 'chess-clock.testnet',
   displayName: 'Chess Clock',
   description: 'Two clocks, one board. Tap to pass the turn.',
   icon: { path: './icon.png', format: 'png' },

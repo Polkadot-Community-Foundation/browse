@@ -36,5 +36,5 @@ Base names are 9 characters or more because DotNS gates shorter ones. Names of 5
 characters or fewer are reserved for governance, and 6 to 8 require the signer to
 hold ProofOfPersonhoodFull, which a fixture deploy should not depend on.
 
-The suite also expects `host-playground.test` published. That one deploys from
+The suite also expects `host-playground.testnet` published. That one deploys from
 its own repo.

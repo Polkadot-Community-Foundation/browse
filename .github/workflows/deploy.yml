@@ -71,7 +71,7 @@ jobs:
           - env: preview
             display-name: Previewnet AssetHub
             genesis: '0x627f54413120c81161261b2ca87f60f0020963107dc28367491e09ec2dd29659'
-            tld: test
+            tld: testnet
             deployment-env: preview
             reuse-artifact: false
             snapshot-cache-prefix: previewnet-domains-snapshot-cid
