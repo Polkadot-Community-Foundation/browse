@@ -247,17 +247,20 @@ jobs:
           retry_wait_seconds: 30
           command: |
             export MNEMONIC='${{ secrets.MNEMONIC }}'
-            # Derive the Bulletin storage pool from the DEPLOYER mnemonic, not the
-            # public dev phrase. deploy.ts reads BULLETIN_POOL_MNEMONIC for the pool
-            # (falling back to DEV_PHRASE when unset) — those public accounts are not
-            # authorized on the Bulletin chains, so uploads fail. The deployer's pool
-            # (//deploy/N) is already authorized.
-            export BULLETIN_POOL_MNEMONIC="$MNEMONIC"
             export NODE_OPTIONS='--max-old-space-size=8192'
             export APP_DOTNS_DOMAIN='${{ steps.domain.outputs.value }}'
             export NETWORK_GENESIS_HASH='${{ matrix.target.genesis }}'
             cd app
-            polkadot-app-deploy dist/spa '${{ steps.domain.outputs.value }}' --env '${{ matrix.target.deployment-env }}'
+            # `--mnemonic` must be a FLAG, not just the MNEMONIC env var:
+            # bin/pad-src.mts picks `signerMode: flags.mnemonic ? "direct" : "pool"`.
+            # Without the flag the CLI routes Bulletin storage through its derived
+            # //deploy/N pool, and those accounts are not authorized on the devnet
+            # Bulletin, so every upload fails with "pool account N is not authorized".
+            # The CLI no longer self-authorizes, so the pool cannot recover on its
+            # own. In direct mode the authorized deployer signs its own uploads.
+            # The value is a GitHub secret and is masked in logs; the CLI's own
+            # "puts a secret on the command line" warning is expected here.
+            polkadot-app-deploy dist/spa '${{ steps.domain.outputs.value }}' --env '${{ matrix.target.deployment-env }}' --mnemonic "$MNEMONIC"
 
       - name: Save deployment to cache
         if: steps.cache.outputs.cache-hit != 'true' && steps.deploy.outcome == 'success'
