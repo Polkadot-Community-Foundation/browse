@@ -208,6 +208,56 @@ export async function lookupOriginalAccount(h160: string): Promise<string | null
   }
 }
 
+/**
+ * Bootstrap budget for a freshly created client, kept well clear of
+ * {@link reviveCall}'s per-call budget. Creating a client is cheap; making one
+ * usable is not — papi has to open a `chainHead` follow and pull the runtime
+ * metadata (~600 KB on Asset Hub) before it can encode a single runtime call,
+ * and inside a mobile host container that metadata crosses the host bridge.
+ * Measured at 8-11s on a Pixel 6, i.e. right at the per-call timeout.
+ */
+const BOOTSTRAP_TIMEOUT_MS = 60_000
+
+/**
+ * Promise of "this client can encode runtime calls", memoised per SDK instance.
+ * A reset yields a new SDK, which is warmed again on its first use.
+ */
+const warmups = new WeakMap<BrowseSdk, Promise<void>>()
+
+/**
+ * Resolve once `sdk`'s client holds the runtime metadata.
+ *
+ * Charging that one-off cost to the first `reviveCall` made the call exceed
+ * `RPC_TIMEOUT_MS`, which reset the SDK — so the retry paid the same bootstrap
+ * again on a brand-new client, and again after that. Browse never left its
+ * loading skeletons. Warming here, under a budget of its own, keeps
+ * `RPC_TIMEOUT_MS` measuring what it is documented to measure: a warm call.
+ */
+function warmClient(sdk: BrowseSdk): Promise<void> {
+  let warming = warmups.get(sdk)
+  if (!warming) {
+    warming = withTimeout(
+      sdk.getClient().getUnsafeApi().getStaticApis(),
+      BOOTSTRAP_TIMEOUT_MS,
+      'client bootstrap'
+    )
+      .then(() => {
+        console.warn('debug network connection', JSON.stringify({ event: 'warmClient:ready' }))
+      })
+      .catch((err) => {
+        // Let the next caller retry rather than pinning the failure forever.
+        warmups.delete(sdk)
+        console.warn(
+          'debug network connection',
+          JSON.stringify({ event: 'warmClient:failed', err: String(err) })
+        )
+        throw err
+      })
+    warmups.set(sdk, warming)
+  }
+  return warming
+}
+
 export async function reviveCall(
   contractAddress: string,
   encodedData: `0x${string}`,
@@ -221,6 +271,7 @@ export async function reviveCall(
   const RPC_TIMEOUT_MS = 8_000
   const attempt = async () => {
     const sdk = await ensureBrowseSdk()
+    await warmClient(sdk)
     await rpcGate()
     console.warn(
       'debug network connection',
