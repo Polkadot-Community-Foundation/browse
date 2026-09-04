@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {IDotnsRegistrar} from "./IDotnsRegistrar.sol";
+import {IPersonhood} from "./IPersonhood.sol";
 import {ISemver} from "./ISemver.sol";
 
 /// @title IPublisher
@@ -35,12 +36,30 @@ interface IPublisher is ISemver {
     );
 
     error EmptyLabel();
+    error EmptyTldNode();
     error NoPersonhood();
     error NotOwner(address caller, uint256 tokenId);
     error RateLimitExceeded(uint64 nextAvailableAt);
 
-    /// @notice Publishes the caller's `.dot` label as a discoverable app.
-    function publish(string calldata label) external;
+    /// @notice Publishes a label the caller owns as a discoverable app.
+    ///
+    /// Every caller must present a proof of personhood over {getPublishDigest} for
+    /// this label, and the tier it claims sets their daily cap. The registry has no
+    /// owner, so there is no account that can publish without one.
+    function publish(
+        string calldata label,
+        IPersonhood.ProofVerificationRequest calldata request
+    ) external;
+
+    /// @notice The message a publisher must bind into their personhood proof.
+    ///
+    /// Covers the chain id, this contract, the publisher, and the label, so a proof is
+    /// spendable once, for one label, by one account, here, on this chain. Publishing a
+    /// second label needs a second proof.
+    function getPublishDigest(address publisher, bytes32 labelhash)
+        external
+        view
+        returns (bytes32);
 
     /// @notice Retracts a previously published label from discovery.
     function unpublish(string calldata label) external;
@@ -73,4 +92,8 @@ interface IPublisher is ISemver {
 
     /// @notice The DotNS registrar consulted for label ownership.
     function registrar() external view returns (IDotnsRegistrar);
+
+    /// @notice Namehash of the TLD node this registry derives label nodes from.
+    /// Matches `tldNode()` on the dotNS protocol registry of the network it is deployed to.
+    function tldNode() external view returns (bytes32);
 }

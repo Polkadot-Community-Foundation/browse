@@ -1,3 +1,5 @@
+import { stripTld } from '@parity/browse-sdk'
+
 import { NETWORK, SELF_LABEL } from './config'
 
 /** Query param carrying the app domain a share link points at. */
@@ -14,7 +16,7 @@ function isLocalhost(): boolean {
 
 /** Direct public URL that opens an app straight away, e.g. `https://calculator.paseo.li`. */
 export function appLink(label: string): string {
-  return `https://${label}.${NETWORK.primaryWebDomain}`
+  return `https://${label}.${NETWORK.PRIMARY_WEB_DOMAIN}`
 }
 
 /**
@@ -31,13 +33,13 @@ export function shareLink(label: string): string {
   const query = `?${APP_PARAM}=${encodeURIComponent(label)}`
   if (isLocalhost()) {
     const authority = window.location.port ? `localhost:${window.location.port}` : 'localhost'
-    return `https://${NETWORK.secondaryWebDomain}/${authority}${query}`
+    return `https://${NETWORK.SECONDARY_WEB_DOMAIN}/${authority}${query}`
   }
-  return `https://${SELF_LABEL}.${NETWORK.primaryWebDomain}${query}`
+  return `https://${SELF_LABEL}.${NETWORK.PRIMARY_WEB_DOMAIN}${query}`
 }
 
 /**
- * Extract a `.dot` label from a pasted browse or app link, or null when the
+ * Extract a bare label from a pasted browse or app link, or null when the
  * input is not a link so normal search text passes through untouched. Handles
  * the browse pass-through form (`…?app=<label>`), its localhost dev variant, and
  * a direct app link (`<label>.<webdomain>`, e.g. `calculator.paseo.li`).
@@ -55,10 +57,7 @@ export function labelFromLink(raw: string): string | null {
   // A pass-through link carries the target as `?app=<label>`; a direct app link
   // puts it in the leftmost host part (`calculator.paseo.li`, `browse.paseo.li`).
   const candidate = url.searchParams.get('app') || url.hostname.split('.')[0]
-  const label = candidate
-    .trim()
-    .toLowerCase()
-    .replace(/\.dot$/, '')
+  const label = stripTld(candidate.trim(), NETWORK.TLD)
   return label || null
 }
 
@@ -72,10 +71,7 @@ export function parseSharedApp(search: string): SharedApp | null {
   const params = new URLSearchParams(search)
   const raw = params.get(APP_PARAM)
   if (!raw) return null
-  const label = raw
-    .trim()
-    .toLowerCase()
-    .replace(/\.dot$/, '')
+  const label = stripTld(raw.trim(), NETWORK.TLD)
   if (!label) return null
   const from = params.get(FROM_PARAM)?.trim() || undefined
   return { label, from }

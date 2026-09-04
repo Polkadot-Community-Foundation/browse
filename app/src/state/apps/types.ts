@@ -1,4 +1,7 @@
+import { nameWithTld } from '@parity/browse-sdk'
+
 import type { LabelEntry } from '../../db/labels'
+import { NETWORK } from '../../lib/config'
 import type { CertificateIdentity } from '../certificate-authorities/types'
 
 /**
@@ -55,8 +58,15 @@ export function isFilterMode(value: string): value is FilterMode {
   return (FILTER_MODES as readonly string[]).includes(value)
 }
 
+export const SORT_MODES = ['relevant', 'new'] as const
+export type SortMode = (typeof SORT_MODES)[number]
+
+export function isSortMode(value: string): value is SortMode {
+  return (SORT_MODES as readonly string[]).includes(value)
+}
+
 export function displayName(app: AppEntry): string {
-  return app.name ?? `${app.label}.dot`
+  return app.name ?? nameWithTld(app.label, NETWORK.TLD)
 }
 
 // Ranking modifiers. See docs/ranking-algorithm.md.
@@ -87,13 +97,31 @@ export function rankScore(app: AppEntry, nowMs: number = Date.now()): number {
   return demand * trust * quality * freshness(app, nowMs)
 }
 
+/**
+ * Where the query matched, lowest first, or null when it did not match at all.
+ *
+ * The score measures popularity, so ordering by it alone let a hit buried in a
+ * description outrank the app whose domain is the query itself. The tier sets the
+ * broad order and the score decides within a tier.
+ */
+function matchTier(app: AppEntry, needle: string): number | null {
+  const label = app.label.toLowerCase()
+  if (label === needle || nameWithTld(label, NETWORK.TLD) === needle) return 0
+  if (label.startsWith(needle)) return 1
+  if (label.includes(needle) || nameWithTld(label, NETWORK.TLD).includes(needle)) return 2
+  if (app.name?.toLowerCase().includes(needle)) return 3
+  if (app.description.toLowerCase().includes(needle)) return 4
+  return null
+}
+
 export function filterApps(
   apps: AppEntry[],
   query: string,
   mode: FilterMode = 'all',
   bookmarkedApps?: Set<string>,
   followingApps?: Set<string>,
-  publishedApps?: Set<string>
+  publishedApps?: Set<string>,
+  sort: SortMode = 'relevant'
 ): AppEntry[] {
   const filterByMode: Record<FilterMode, (app: AppEntry) => boolean> = {
     all: (app) => publishedApps?.has(app.label) ?? true,
@@ -103,29 +131,45 @@ export function filterApps(
   let filtered = apps.filter(filterByMode[mode])
 
   const needle = query.toLowerCase().trim()
+  const tiers = new Map<string, number>()
   if (needle) {
-    filtered = filtered.filter(
-      (app) =>
-        app.label.toLowerCase().includes(needle) ||
-        `${app.label}.dot`.includes(needle) ||
-        (app.name?.toLowerCase().includes(needle) ?? false) ||
-        app.description.toLowerCase().includes(needle)
-    )
+    for (const app of filtered) {
+      const tier = matchTier(app, needle)
+      if (tier !== null) tiers.set(app.label, tier)
+    }
+    filtered = filtered.filter((app) => tiers.has(app.label))
   }
 
-  // All and Following rank by the composite score, then recommendation count,
-  // then name. Bookmarks stays alphabetical.
-  if (mode === 'all' || mode === 'following') {
-    const now = Date.now()
+  // A closer match always outranks a looser one, whatever the sort, because a
+  // score cannot make a description hit mean more than the domain the user typed.
+  const byTier = (a: AppEntry, b: AppEntry) => (tiers.get(a.label) ?? 0) - (tiers.get(b.label) ?? 0)
+
+  // Every tab honours the chosen sort. Relevant ranks by the composite score,
+  // then recommendation count, then name. New orders by publish time (newest
+  // first, unpublished last), then falls back to relevance.
+  const now = Date.now()
+  if (sort === 'new') {
     return filtered.sort((a, b) => {
+      const tier = byTier(a, b)
+      if (tier !== 0) return tier
+      const publishedA = a.publishedAt ?? -Infinity
+      const publishedB = b.publishedAt ?? -Infinity
+      if (publishedA !== publishedB) return publishedB - publishedA
       const scoreA = rankScore(a, now)
       const scoreB = rankScore(b, now)
       if (scoreA !== scoreB) return scoreB - scoreA
-      const countA = a.attestationCount ?? 0
-      const countB = b.attestationCount ?? 0
-      if (countA !== countB) return countB - countA
       return displayName(a).localeCompare(displayName(b))
     })
   }
-  return filtered.sort((a, b) => displayName(a).localeCompare(displayName(b)))
+  return filtered.sort((a, b) => {
+    const tier = byTier(a, b)
+    if (tier !== 0) return tier
+    const scoreA = rankScore(a, now)
+    const scoreB = rankScore(b, now)
+    if (scoreA !== scoreB) return scoreB - scoreA
+    const countA = a.attestationCount ?? 0
+    const countB = b.attestationCount ?? 0
+    if (countA !== countB) return countB - countA
+    return displayName(a).localeCompare(displayName(b))
+  })
 }

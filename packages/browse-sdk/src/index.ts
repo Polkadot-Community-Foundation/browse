@@ -22,25 +22,17 @@ export {
   DEVNET_ASSETHUB_GENESIS,
   isKnownGenesis,
   KNOWN_NETWORKS,
-  PASEO_ASSETHUB_NEXT_V2_GENESIS,
+  PASEONEXTV2_ASSETHUB_GENESIS,
   PREVIEWNET_ASSETHUB_GENESIS,
   publisherReadAddresses,
-  selectNetwork,
-  SUMMIT_ASSETHUB_GENESIS
+  selectNetwork
 } from './config.js'
 export type { NetworkConfig, NetworkGenesis } from './config.js'
 
 export { parseRootManifest } from './manifest.js'
 
 export { MODALITIES } from './types.js'
-export type {
-  AppListing,
-  IconFormat,
-  Modality,
-  NetworkAddresses,
-  Deployment,
-  RootManifest
-} from './types.js'
+export type { AppListing, IconFormat, Modality, Deployment, RootManifest } from './types.js'
 
 export {
   trustedAttestationId,
@@ -77,13 +69,26 @@ export {
   encodeOwner,
   encodePublishedCount,
   encodeSchemaCount,
+  encodeSetText,
   encodeText,
   encodeTrustedAttester,
   labelhashToTokenId,
   namehash,
   nodeToSubject,
+  tldNode,
   tryDecode
 } from './abi/index.js'
+export { nameWithTld, stripTld } from './name.js'
+
+export {
+  fullPersonRingVrfEntropy,
+  lightPersonRingVrfEntropy,
+  deriveRingVrfEntropy,
+  ringVrfRootEntropy,
+  junctionChainCode,
+  indexBytes,
+  INDEX_MAGIC
+} from './personhood-keys.js'
 export type {
   AggregateResult,
   DecodedAttestation,

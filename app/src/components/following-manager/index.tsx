@@ -94,12 +94,6 @@ export function FollowingManager({
     setInput('')
   }
 
-  function commit() {
-    const first = results[0]
-    if (first) follow(first.account, first.username)
-    else if (ss58) follow(trimmed)
-  }
-
   // A raw SS58 paste follows directly. A username prefix only resolves once it
   // reaches the snapshot shard-key length, so shorter input shows the list.
   const showResults = ss58 || query.length >= MIN_PREFIX_LENGTH
@@ -115,13 +109,19 @@ export function FollowingManager({
             type='text'
             autocomplete='off'
             spellcheck={false}
+            enterkeyhint='done'
             placeholder='username'
             value={input}
             onInput={(e) => setInput((e.target as HTMLInputElement).value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
+                // Done typing, and nothing more. Return used to follow the first
+                // result, which arrives asynchronously, so pressing it early
+                // followed whoever happened to be there. Choosing an account is a
+                // choice, so it takes a tap. Blurring is what puts a phone
+                // keyboard away.
                 e.preventDefault()
-                commit()
+                e.currentTarget.blur()
               } else if (e.key === 'Backspace' && input === '' && following.length > 0) {
                 // Pull the last-followed username back into the field so it can
                 // be edited rather than dropped outright.
