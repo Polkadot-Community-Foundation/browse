@@ -81,7 +81,13 @@ jobs:
         if: needs.check.outputs.skip != 'true'
         env:
           PROXY_PRIVATE_KEY: ${{ secrets.PROXY_PRIVATE_KEY }}
-        run: bun run test:e2e --retries=1 --workers=1
+        # retries=2: the on-chain recommendation-provisioning and app-start
+        # data-load specs run against a shared previewnet with an aggressive
+        # funding timeout, so they flake intermittently (inherited upstream
+        # behavior). Two retries converts the transient failures to green while
+        # a genuine regression still fails all three attempts. workers=1 keeps
+        # the shared on-chain state deterministic.
+        run: bun run test:e2e --retries=2 --workers=1
 
   mark-passed:
     name: Mark as passed
