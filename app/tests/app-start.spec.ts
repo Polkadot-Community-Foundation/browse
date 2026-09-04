@@ -21,6 +21,21 @@ test.describe('App Start', () => {
     test.beforeAll(async ({ browser }) => {
       host = await startUnsignedHost()
       context = await browser.newContext({ ignoreHTTPSErrors: true })
+      // The host of an unsigned user may never answer getProductAccount, like
+      // a desktop host with its account disconnected, so this whole suite runs
+      // against a host page rewritten to leave that request pending forever.
+      const hostOrigin = new URL(host.url).origin
+      await context.route(
+        (url) => url.origin === hostOrigin,
+        async (route) => {
+          const response = await route.fetch()
+          const body = (await response.text()).replace(
+            /handleAccountGet\((\([^)]*\))=>\{/,
+            'handleAccountGet($1=>{return;'
+          )
+          await route.fulfill({ response, body })
+        }
+      )
       const page = await context.newPage()
       await navigateToTestHost(page, host.url)
       frame = await getProductFrame(page, '.category-tab')
@@ -49,6 +64,7 @@ test.describe('App Start', () => {
       const cards = frame.locator('.product-card[data-label]')
       await expect(cards.first()).toBeVisible({ timeout: 20_000 })
       expect(await cards.count()).toBeGreaterThan(0)
+      await expect(cards.first().locator('.product-card__name')).not.toBeEmpty()
       await expect(frame.locator('.loading-dots')).not.toBeVisible({ timeout: 10_000 })
       // The test host has no IPFS backend, so seed calculator's icon bytes for its lookup.
       await seedIconPreimage(frame.page(), 'calculator')
@@ -116,7 +132,7 @@ test.describe('App Start', () => {
       await expect(activeTab).toHaveText('All')
     })
 
-    test('As a signed user, when the All tab loads, I see products in ranking-score order', async () => {
+    test('As a signed user, when the All tab loads, I see products ordered by the selected sort', async () => {
       test.setTimeout(30_000)
 
       // When
@@ -138,10 +154,22 @@ test.describe('App Start', () => {
         ).__queryClient
         return (qc?.getQueryData(['apps', 'all']) as unknown[] | undefined) ?? []
       })
-      const expectedOrder = filterApps(apps as AppEntry[], '', 'all')
-        .map((app) => app.label)
-        .filter((label) => domOrder.includes(label))
-      expect(domOrder).toEqual(expectedOrder)
+      const orderBy = (sort: 'relevant' | 'new') =>
+        filterApps(apps as AppEntry[], '', 'all', undefined, undefined, undefined, sort)
+          .map((app) => app.label)
+          .filter((label) => domOrder.includes(label))
+      // The default sort is New.
+      expect(domOrder).toEqual(orderBy('new'))
+
+      // When
+      await frame.locator('.customize-trigger').click()
+      await frame.locator('.customize-nav-row', { hasText: 'Order by' }).click()
+      await frame.locator('.order-panel__option', { hasText: 'Relevant' }).click()
+
+      // Then
+      await expect
+        .poll(() => cards.evaluateAll((els) => els.map((el) => el.getAttribute('data-label'))))
+        .toEqual(orderBy('relevant'))
 
       // Then
       const labelCount = await frame.page().evaluate(() => {
@@ -341,7 +369,7 @@ test.describe('App Start', () => {
     test('As a user, when I bookmark a searched app, its name and icon survive a background synchronization after TTL', async () => {
       test.setTimeout(120_000)
       const page = await context.newPage()
-      const target = 'web3summit-admin'
+      const target = 'alarm-clock'
 
       // Given
       await navigateToTestHost(page, host.url)
@@ -350,7 +378,7 @@ test.describe('App Start', () => {
       await frame.locator('.search-bar__input').fill(target)
       const card = frame.locator(`.product-card[data-label="${target}"]`)
       await expect(card).toBeVisible({ timeout: 20_000 })
-      await expect(card.locator('.product-card__name')).toHaveText('Web3 Summit Admin')
+      await expect(card.locator('.product-card__name')).toHaveText('Alarm Clock')
       await card.locator('.product-card__bookmark').click()
       await page.waitForTimeout(500)
 
@@ -377,7 +405,7 @@ test.describe('App Start', () => {
       await frame.locator('.category-tab', { hasText: 'Bookmarks' }).click()
       const bookmarked = frame.locator(`.product-card[data-label="${target}"]`)
       await expect(bookmarked).toBeVisible()
-      await expect(bookmarked.locator('.product-card__name')).toHaveText('Web3 Summit Admin')
+      await expect(bookmarked.locator('.product-card__name')).toHaveText('Alarm Clock')
 
       await page.close()
     })
@@ -385,7 +413,7 @@ test.describe('App Start', () => {
     test('As a user, when I open a searched app then return and reload, I see the All list instantly', async () => {
       test.setTimeout(90_000)
       const page = await context.newPage()
-      const target = 'browse-trusted-attester-resolver00'
+      const target = 'countdown-timer'
       const listedLabels = async (fr: Frame) =>
         (await fr
           .locator('.product-card')

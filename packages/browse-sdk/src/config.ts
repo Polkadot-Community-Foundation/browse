@@ -13,205 +13,193 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import type { NetworkAddresses } from "./types.js";
+import type { Deployment } from './types.js'
 
-export interface NetworkConfig extends NetworkAddresses {
-  // Dotns
-  STORE_FACTORY: `0x${string}`;
-  REGISTRY: `0x${string}`;
-  // Attestation Protocol
-  SCHEMA_REGISTRY: `0x${string}`;
-  ATTESTATION_SERVICE: `0x${string}`;
-  ATTESTATION_INDEX_RESOLVER: readonly `0x${string}`[];
-  TRUSTED_ATTESTER_RESOLVER: `0x${string}`;
-  TRUSTED_ATTESTER?: `0x${string}`;
-  IPFS_GATEWAY: string;
-  /** Production web domain apps are reachable under, e.g. `paseo.li` for `browse.paseo.li`. */
-  primaryWebDomain: string;
-  /** Web domain that routes to a local dev instance, e.g. `paseoli.dev`. Equal to the primary when there is no separate dev host. */
-  secondaryWebDomain: string;
-  SCHEMA_ID: readonly bigint[];
-  COMPLIANCE_SCHEMA_ID: bigint;
-  ASSETHUB_RPCS: readonly string[];
-  PEOPLE_GENESIS?: `0x${string}`;
-  PEOPLE_RPCS?: readonly string[];
+export interface NetworkConfig {
+  /** Dotns */
+  STORE_FACTORY: `0x${string}`
+  REGISTRY: `0x${string}`
+  REGISTRAR: `0x${string}` // https://github.com/paritytech/dotns/blob/master/contracts/registrars/DotnsRegistrar.sol
+  CONTENT_RESOLVER: `0x${string}` // https://github.com/paritytech/dotns/blob/master/contracts/resolvers/DotnsContentResolver.sol
+  MULTICALL3: `0x${string}` // https://github.com/paritytech/dotns/blob/master/contracts/utils/Multicall3.sol
+  CREATE3_FACTORY: `0x${string}` | null // https://github.com/paritytech/dotns/blob/master/contracts/deploy/Create3Factory.sol
+  TLD: string
+  /** Browse */
+  PUBLISHER: readonly Deployment[] // https://github.com/paritytech/browse/blob/main/evm/src/Publisher.sol
+  /** Attestation Protocol */
+  SCHEMA_REGISTRY: `0x${string}`
+  ATTESTATION_SERVICE: `0x${string}`
+  ATTESTATION_INDEX_RESOLVER: readonly `0x${string}`[]
+  TRUSTED_ATTESTER_RESOLVER: `0x${string}`
+  TRUSTED_ATTESTER?: `0x${string}`
+  SCHEMA_ID: readonly bigint[]
+  COMPLIANCE_SCHEMA_ID: bigint
+  /** Web domains */
+  PRIMARY_WEB_DOMAIN: string
+  SECONDARY_WEB_DOMAIN: string
+  /** Snapshots */
+  SNAPSHOT_POINTER_DOMAIN: string
+  /** Network */
+  IPFS_GATEWAY: string
+  ASSETHUB_RPCS: readonly string[]
+  PEOPLE_GENESIS?: `0x${string}`
+  PEOPLE_RPCS?: readonly string[]
+  BULLETIN_RPCS?: readonly string[]
 }
 
-export const PASEO_ASSETHUB_NEXT_V2_GENESIS =
-  "0xbf0488dbe9daa1de1c08c5f743e26fdc2a4ecd74cf87dd1b4b1eeb99ae4ef19f" as const;
+export const PASEONEXTV2_ASSETHUB_GENESIS =
+  '0x23e730eb1c6fecae09c917439a5038cb6122d0d48980e8b9bbf0ff56f94a2ca6' as const
 
 export const PREVIEWNET_ASSETHUB_GENESIS =
-  "0x29f7b15e6227f86b90bf5199b5c872c28649a30e5f15fae6dd8fa9d5d48d6fbb" as const;
-
-export const SUMMIT_ASSETHUB_GENESIS =
-  "0xf388dc6d6cdf6fb77eac3c4a91f31bc0c8642b142f1a757512ab7849f9f70660" as const;
+  '0x627f54413120c81161261b2ca87f60f0020963107dc28367491e09ec2dd29659' as const
 
 export const DEVNET_ASSETHUB_GENESIS =
   "0xd6eec26135305a8ad257a20d003357284c8aa03d0bdb2b357ab0a22371e11ef2" as const;
 
 export const KNOWN_NETWORKS = {
-  [PASEO_ASSETHUB_NEXT_V2_GENESIS]: {
+  [PASEONEXTV2_ASSETHUB_GENESIS]: {
     // PCF-owned suite on paseo-next AH-1500 (DotNS manifest
     // dotns deployments/paseo-next-asset-hub/420420417.json, verified on-chain).
-    MULTICALL3: "0x1C1044BEa5bDe0F435436bB52A8340fBE1D59847",
-    STORE_FACTORY: "0x2947af3CBFb45b89610524a25921C32cB65C4C39",
-    CONTENT_RESOLVER: "0xf110e5799c3f0adb8ED885C02c45Ecfe7fD86226",
-    REGISTRY: "0xFb7AB7E142ED0248D77198CA8722D67C1930D783",
-    REGISTRAR: "0xf3969bCBE60463302306663C62A6A8ef91ab9aA5",
+    // These are OUR deployments, not upstream's — upstream's entry points at
+    // Parity's own suite on the same chain.
+    MULTICALL3: '0x1C1044BEa5bDe0F435436bB52A8340fBE1D59847',
+    STORE_FACTORY: '0x2947af3CBFb45b89610524a25921C32cB65C4C39',
+    CONTENT_RESOLVER: '0xf110e5799c3f0adb8ED885C02c45Ecfe7fD86226',
+    REGISTRY: '0xFb7AB7E142ED0248D77198CA8722D67C1930D783',
+    REGISTRAR: '0xf3969bCBE60463302306663C62A6A8ef91ab9aA5',
+    // PCF suite was not deployed through a Create3Factory.
+    CREATE3_FACTORY: null,
+    TLD: 'paseo',
     PUBLISHER: [
       {
-        version: "2.1.0",
-        address: "0x234e434e66f246def2207558dcdb0585d2de9fdc",
-      },
+        version: '2.1.0',
+        address: '0x234e434e66f246def2207558dcdb0585d2de9fdc'
+      }
     ],
-    SCHEMA_REGISTRY: "0x358e11d99749a81fc02eb20d8e4732619caea0a0",
-    ATTESTATION_SERVICE: "0x110877cc32b31ea6a11c60b2e4d2c37cbb97bb3e",
-    ATTESTATION_INDEX_RESOLVER: [
-      "0x4a6c08e97ace2d3e3ff9d4a877c36a67ae307b1a",
-    ],
-    TRUSTED_ATTESTER_RESOLVER: "0x6a1421a1f0f1535e402d8655ea253e21dc5d9894",
-    TRUSTED_ATTESTER: "0xF8d186c352e2ea0B9C02c211525A20DdcB8CD2dD",
-    IPFS_GATEWAY: "https://paseo-bulletin-next-ipfs.polkadot.io",
-    primaryWebDomain: "paseo.li",
-    secondaryWebDomain: "paseoli.dev",
-    // PCF paseo-next attestation stack: single resolver → single schema (keep in
+    SCHEMA_REGISTRY: '0x358e11d99749a81fc02eb20d8e4732619caea0a0',
+    ATTESTATION_SERVICE: '0x110877cc32b31ea6a11c60b2e4d2c37cbb97bb3e',
+    ATTESTATION_INDEX_RESOLVER: ['0x4a6c08e97ace2d3e3ff9d4a877c36a67ae307b1a'],
+    TRUSTED_ATTESTER_RESOLVER: '0x6a1421a1f0f1535e402d8655ea253e21dc5d9894',
+    TRUSTED_ATTESTER: '0xF8d186c352e2ea0B9C02c211525A20DdcB8CD2dD',
+    IPFS_GATEWAY: 'https://paseo-bulletin-next-ipfs.polkadot.io',
+    PRIMARY_WEB_DOMAIN: 'paseo.li',
+    SECONDARY_WEB_DOMAIN: 'paseoli.dev',
+    SNAPSHOT_POINTER_DOMAIN: 'browse.paseo',
+    // PCF paseo-next attestation stack: single resolver -> single schema (keep in
     // sync with ATTESTATION_INDEX_RESOLVER length; upstream's [5n, 1n] is their
     // own deployment, not ours).
     SCHEMA_ID: [1n],
     COMPLIANCE_SCHEMA_ID: 2n,
-    ASSETHUB_RPCS: ["wss://paseo-asset-hub-next-rpc.polkadot.io"],
-    PEOPLE_GENESIS:
-      "0xc5af1826b31493f08b7e2a823842f98575b806a784126f28da9608c68665afa5",
-    PEOPLE_RPCS: ["wss://paseo-people-next-system-rpc.polkadot.io"],
+    ASSETHUB_RPCS: ['wss://paseo-asset-hub-next-rpc.polkadot.io'],
+    PEOPLE_GENESIS: '0xc5af1826b31493f08b7e2a823842f98575b806a784126f28da9608c68665afa5',
+    PEOPLE_RPCS: ['wss://paseo-people-next-system-rpc.polkadot.io'],
+    BULLETIN_RPCS: ['wss://paseo-bulletin-next-rpc.polkadot.io']
   },
   [PREVIEWNET_ASSETHUB_GENESIS]: {
-    MULTICALL3: "0x758F88C7761FCD4742f9471448c2209a7e859280",
-    STORE_FACTORY: "0x4BEFaB5de968183524b1eBd2FAec9C68Cdc696Fd",
-    CONTENT_RESOLVER: "0xBD003d5Dd04E68aC60d529a46AEfBdEf8941868C",
-    REGISTRY: "0x5622CA75C75726Da13ae46C69127C07c87538633",
-    REGISTRAR: "0x061273AeF34e8ab9Ca08E199d7440E2639Fc2088",
+    MULTICALL3: '0xB4468000abD87D3c56cbFBd153161223D7b109e5',
+    STORE_FACTORY: '0x709A027F446a9e2a4BB9cb9a9c754435b19e32B7',
+    CONTENT_RESOLVER: '0x7F74D7CD50f5a834270E2ad395a01b01891AB37d',
+    REGISTRY: '0xf34054fd76BbF85f216cf9908226D5f0A72E50CA',
+    REGISTRAR: '0x4f06E818Ba3d987704fd91cf3d868E4b019106Ab',
+    CREATE3_FACTORY: '0x8533c79E058c5a6489CAFeCA86dc600E029D75f5',
+    TLD: 'testnet',
     PUBLISHER: [
       {
-        version: "2.1.0",
-        address: "0xcea6551761b9ea035b1f2be5cddd9dd85148437d",
-      },
-      {
-        version: "2.0.0",
-        address: "0xa616254fd98724c7a3d295c98ca393a486096b68",
-      },
+        version: '3.0.0',
+        address: '0x01167f228A729f8e50f18aa7189f59b659155D09'
+      }
     ],
-    SCHEMA_REGISTRY: "0xbe92a66b697dc9bd4a35b1b8e3aead484d2010a7",
-    ATTESTATION_SERVICE: "0x24af868f14605460f6385aae166986cee9800514",
-    ATTESTATION_INDEX_RESOLVER: [
-      "0x3b34b05eb4b761bbc7f284f90bb4f9bbafd16570",
-      "0x5d701a1aca551b0e1cd6a00172554e5ff2348104",
-    ],
-    TRUSTED_ATTESTER_RESOLVER: "0xdc713ebf1028544a00225c8741eb698253c49302",
-    TRUSTED_ATTESTER: "0x35Cdb23fF7fc86E8DCcd577CA309bFEA9c978D20",
-    IPFS_GATEWAY: "https://previewnet.substrate.dev",
-    primaryWebDomain: "testnet.li",
-    secondaryWebDomain: "testnet.li",
-    SCHEMA_ID: [6n, 1n],
-    COMPLIANCE_SCHEMA_ID: 7n,
-    ASSETHUB_RPCS: ["wss://previewnet.substrate.dev/asset-hub"],
-    PEOPLE_GENESIS:
-      "0x3389bc9179d3be32568c67278bd080d05631ac71982d28a3fe545421147b311e",
-    PEOPLE_RPCS: ["wss://previewnet.substrate.dev/people"],
-  },
-  [SUMMIT_ASSETHUB_GENESIS]: {
-    MULTICALL3: "0x1C1044BEa5bDe0F435436bB52A8340fBE1D59847",
-    STORE_FACTORY: "0x2947af3CBFb45b89610524a25921C32cB65C4C39",
-    CONTENT_RESOLVER: "0xf110e5799c3f0adb8ED885C02c45Ecfe7fD86226",
-    REGISTRY: "0xFb7AB7E142ED0248D77198CA8722D67C1930D783",
-    REGISTRAR: "0xf3969bCBE60463302306663C62A6A8ef91ab9aA5",
-    PUBLISHER: [
-      {
-        version: "2.1.0",
-        address: "0xf5fe0fc9f4c13dfd3a4a8abd27e64eb652157494",
-      },
-    ],
-    SCHEMA_REGISTRY: "0x4d5b7543c380be0446ff9c22b6055990e2aa952a",
-    ATTESTATION_SERVICE: "0x40c48a58cdc2797f21325269c4422e717e6510e5",
-    ATTESTATION_INDEX_RESOLVER: ["0xa2ea4ab49bbe73f466f2fa0aeb50b39d34b55218"],
-    TRUSTED_ATTESTER_RESOLVER: "0xde4a63079034230d71b5a5071571ed3fd95194e0",
-    IPFS_GATEWAY: "https://summit-ipfs.polkadot.io",
-    primaryWebDomain: "dot.li",
-    secondaryWebDomain: "dot.li",
+    SCHEMA_REGISTRY: '0xd8af2626d3c5d990ae75077de3c5d9bb5e71de1e',
+    ATTESTATION_SERVICE: '0x37e7021fd6e44d5cdc17847b33388d6d6eff63cd',
+    ATTESTATION_INDEX_RESOLVER: ['0xAca17c2547f09b3AD0d3bd28Db11EE172604b85b'],
+    TRUSTED_ATTESTER_RESOLVER: '0x8326c11a76Dda4702046e92f73C0ea7E698560a2',
+    TRUSTED_ATTESTER: '0x35Cdb23fF7fc86E8DCcd577CA309bFEA9c978D20',
+    IPFS_GATEWAY: 'https://previewnet.substrate.dev',
+    PRIMARY_WEB_DOMAIN: 'testnet.li',
+    SECONDARY_WEB_DOMAIN: 'testnet.li',
+    SNAPSHOT_POINTER_DOMAIN: 'browse.testnet',
     SCHEMA_ID: [1n],
     COMPLIANCE_SCHEMA_ID: 2n,
-    ASSETHUB_RPCS: ["wss://summit-asset-hub-rpc.polkadot.io"],
+    ASSETHUB_RPCS: ['wss://previewnet.substrate.dev/asset-hub'],
+    PEOPLE_GENESIS: '0x34999c298555e25bf17a7f3ea20efe7f6fdab1dfec7f808fbcfd36ca8aa5d220',
+    PEOPLE_RPCS: ['wss://previewnet.substrate.dev/people'],
+    BULLETIN_RPCS: ['wss://previewnet.substrate.dev/bulletin']
   },
   [DEVNET_ASSETHUB_GENESIS]: {
     // PCF public products devnet: standard Paseo Asset Hub (para 1000).
-    MULTICALL3: "0x929EdB8d61461c29d07deC834ef747EbFDcf0B74",
-    STORE_FACTORY: "0xD81DC23FAa69B311C1FC553Ea63798772e7D253D",
-    CONTENT_RESOLVER: "0x326bdE29315199c814B1c58b431D84D16EA5cE41",
-    REGISTRY: "0x527b08a640b527a3dae0C4BE04D7344E430B6E50",
-    REGISTRAR: "0x7f0dF075cc8B7FE7218E90fFC5a553450dB120F3",
+    // Addresses cross-checked against summit-net-deployments/DEVNET.md.
+    MULTICALL3: '0x929EdB8d61461c29d07deC834ef747EbFDcf0B74',
+    STORE_FACTORY: '0xD81DC23FAa69B311C1FC553Ea63798772e7D253D',
+    CONTENT_RESOLVER: '0x326bdE29315199c814B1c58b431D84D16EA5cE41',
+    REGISTRY: '0x527b08a640b527a3dae0C4BE04D7344E430B6E50',
+    REGISTRAR: '0x7f0dF075cc8B7FE7218E90fFC5a553450dB120F3',
+    CREATE3_FACTORY: '0x264D9180Ab6746cF00212307462E1e9a9d46bBcD',
+    TLD: 'dot',
     PUBLISHER: [
       {
-        version: "2.1.0",
-        address: "0xaab42efbe8ea4d4228c3a11e973f94c17b9a0f2c",
-      },
+        version: '2.1.0',
+        address: '0xaab42efbe8ea4d4228c3a11e973f94c17b9a0f2c'
+      }
     ],
-    SCHEMA_REGISTRY: "0xf8fccb815aabb57fb0210c686a923406ac4ef99d",
-    ATTESTATION_SERVICE: "0x1c8aeb620106dc05c74db5667e16042af6893352",
-    ATTESTATION_INDEX_RESOLVER: ["0xe61622e6b55ddacbe1d076382903fd02a7709ab6"],
-    TRUSTED_ATTESTER_RESOLVER: "0x075a4054e3b580540d2b908a7e339c7decd414dd",
-    TRUSTED_ATTESTER: "0xf8d186c352e2ea0b9c02c211525a20ddcb8cd2dd",
-    IPFS_GATEWAY: "https://devnet-ipfs.api.polkadotcommunity.foundation",
+    SCHEMA_REGISTRY: '0xf8fccb815aabb57fb0210c686a923406ac4ef99d',
+    ATTESTATION_SERVICE: '0x1c8aeb620106dc05c74db5667e16042af6893352',
+    ATTESTATION_INDEX_RESOLVER: ['0xe61622e6b55ddacbe1d076382903fd02a7709ab6'],
+    TRUSTED_ATTESTER_RESOLVER: '0x075a4054e3b580540d2b908a7e339c7decd414dd',
+    TRUSTED_ATTESTER: '0xf8d186c352e2ea0b9c02c211525a20ddcb8cd2dd',
+    IPFS_GATEWAY: 'https://devnet-ipfs.api.polkadotcommunity.foundation',
     // PCF products devnet gateway: apps resolve at <label>.dev-dot.li.
-    primaryWebDomain: "dev-dot.li",
-    secondaryWebDomain: "dev-dot.li",
+    PRIMARY_WEB_DOMAIN: 'dev-dot.li',
+    SECONDARY_WEB_DOMAIN: 'dev-dot.li',
+    SNAPSHOT_POINTER_DOMAIN: 'browse.dot',
     SCHEMA_ID: [1n],
     COMPLIANCE_SCHEMA_ID: 2n,
-    ASSETHUB_RPCS: ["wss://asset-hub-paseo-rpc.n.dwellir.com"],
-    PEOPLE_GENESIS:
-      "0xe6c30d6e148f250b887105237bcaa5cb9f16dd203bf7b5b9d4f1da7387cb86ec",
-    PEOPLE_RPCS: ["wss://people-paseo.rotko.net"],
-  },
-} as const satisfies Record<string, NetworkConfig>;
+    ASSETHUB_RPCS: ['wss://asset-hub-paseo-rpc.n.dwellir.com'],
+    PEOPLE_GENESIS: '0xe6c30d6e148f250b887105237bcaa5cb9f16dd203bf7b5b9d4f1da7387cb86ec',
+    PEOPLE_RPCS: ['wss://people-paseo.rotko.net'],
+    BULLETIN_RPCS: ['wss://bulletin-paseo.tservices.es:8443']
+  }
+} as const satisfies Record<string, NetworkConfig>
 
-export type NetworkGenesis = keyof typeof KNOWN_NETWORKS;
+export type NetworkGenesis = keyof typeof KNOWN_NETWORKS
 
 export function isKnownGenesis(genesis: string): genesis is NetworkGenesis {
-  return Object.prototype.hasOwnProperty.call(KNOWN_NETWORKS, genesis);
+  return Object.prototype.hasOwnProperty.call(KNOWN_NETWORKS, genesis)
 }
 
 export function selectNetwork(genesis: NetworkGenesis): NetworkConfig {
-  return KNOWN_NETWORKS[genesis];
+  return KNOWN_NETWORKS[genesis]
 }
 
 /**
- * Every Publisher address to read listings from, current first.
+ * Every Publisher address to read listings from, write target first.
  *
  * Reads union across all deployments so a redeploy doesn't strand the listings
  * published to an older registry. Empty on networks without a Publisher.
+ *
+ * The first entry is the one writes go to, which is normally also the newest.
+ * A deployment whose storage has not been migrated yet is ordered after the
+ * registry still holding the listings, so the two can disagree.
  */
-export function publisherReadAddresses(
-  network: NetworkConfig,
-): `0x${string}`[] {
-  return network.PUBLISHER.map((deployment) => deployment.address);
+export function publisherReadAddresses(network: NetworkConfig): `0x${string}`[] {
+  return network.PUBLISHER.map((deployment) => deployment.address)
 }
 
 /**
  * The index-resolver to write new attestations against: the newest deployment.
  */
-export function activeAttestationResolver(
-  network: NetworkConfig,
-): `0x${string}` {
-  const [active] = network.ATTESTATION_INDEX_RESOLVER;
-  if (!active) throw new Error("No attestation index resolver configured");
-  return active;
+export function activeAttestationResolver(network: NetworkConfig): `0x${string}` {
+  const [active] = network.ATTESTATION_INDEX_RESOLVER
+  if (!active) throw new Error('No attestation index resolver configured')
+  return active
 }
 
 /**
  * The schema ID to write new attestations against: the newest registration.
  */
 export function activeSchemaId(network: NetworkConfig): bigint {
-  const [active] = network.SCHEMA_ID;
-  if (active === undefined) throw new Error("No schema ID configured");
-  return active;
+  const [active] = network.SCHEMA_ID
+  if (active === undefined) throw new Error('No schema ID configured')
+  return active
 }
 
 /**
@@ -222,15 +210,15 @@ export function activeSchemaId(network: NetworkConfig): bigint {
  * attestations from older versions still surface. Writes use index 0.
  */
 export function attestationVersions(
-  network: NetworkConfig,
+  network: NetworkConfig
 ): { resolver: `0x${string}`; schemaId: bigint }[] {
   if (network.ATTESTATION_INDEX_RESOLVER.length !== network.SCHEMA_ID.length) {
     throw new Error(
-      "ATTESTATION_INDEX_RESOLVER and SCHEMA_ID must be the same length: one schema per resolver version, same order",
-    );
+      'ATTESTATION_INDEX_RESOLVER and SCHEMA_ID must be the same length: one schema per resolver version, same order'
+    )
   }
   return network.ATTESTATION_INDEX_RESOLVER.map((resolver, i) => ({
     resolver,
-    schemaId: network.SCHEMA_ID[i]!,
-  }));
+    schemaId: network.SCHEMA_ID[i]!
+  }))
 }

@@ -237,8 +237,10 @@ test.describe('Motion', () => {
     await upvote.click()
 
     // Then
-    await expect(card.locator('.product-card__bubble').first()).toBeVisible({ timeout: 15000 })
-    await expect(frame.locator('.toast--visible')).toContainText('Recommended!', { timeout: 15000 })
+    await Promise.all([
+      expect(card.locator('.product-card__bubble').first()).toBeVisible({ timeout: 15000 }),
+      expect(frame.locator('.toast--visible')).toContainText('Recommended!', { timeout: 15000 })
+    ])
 
     // Linger in headed runs so the bubbling is watchable; no-op in CI.
     if (process.env.HEADED === '1') await frame.waitForTimeout(4000)

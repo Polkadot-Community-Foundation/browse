@@ -1,6 +1,6 @@
 ---
 name: deploy
-description: This skill should be used when the user asks to "deploy", "deploy to previewnet", "deploy to paseo", "deploy browse-beta00", or "ship the app" from a browse-style repo. It builds the current repo's app for the target network (argument — `previewnet` default, or `paseo`/`paseo-next-v2`) and deploys it to a DotNS domain (default `browse-beta00.dot`) on the matching Bulletin environment, handling the recurring gotchas: Bulletin storage-pool authorization, the local `bulletin-deploy` module symlink, and reclaiming `app.`/`widget.` subnames left owned by a prior deployer.
+description: This skill should be used when the user asks to "deploy", "deploy to previewnet", "deploy to paseo", "deploy browse-beta00", or "ship the app" from a browse-style repo. It builds the current repo's app for the target network (argument — `previewnet` default, or `paseo`) and deploys it to a DotNS domain (default `browse-beta00.dot`) on the matching Bulletin environment, handling the recurring gotchas: Bulletin storage-pool authorization, the local `bulletin-deploy` module symlink, and reclaiming `app.`/`widget.` subnames left owned by a prior deployer.
 ---
 
 # Deploy a browse-style app
@@ -14,13 +14,13 @@ handled here.
 ## Parameters
 
 - **Network**: from the arguments — empty / `preview` / `previewnet` →
-  previewnet (default); `paseo` / `paseonet` / `paseo-next-v2` → paseo-next-v2;
+  previewnet (default); `paseo` / `paseonet` → paseo;
   anything else, stop and ask. It selects the genesis + bulletin-deploy env:
 
-  | network       | `<GENESIS>` (`NETWORK_GENESIS_HASH`)                                 | `<ENV>` (bulletin-deploy `--env`) |
-  | ------------- | -------------------------------------------------------------------- | --------------------------------- |
-  | previewnet    | `0x29f7b15e6227f86b90bf5199b5c872c28649a30e5f15fae6dd8fa9d5d48d6fbb` | `preview`                         |
-  | paseo-next-v2 | `0xbf0488dbe9daa1de1c08c5f743e26fdc2a4ecd74cf87dd1b4b1eeb99ae4ef19f` | `paseo-next-v2`                   |
+  | network    | `<GENESIS>` (`NETWORK_GENESIS_HASH`)                                 | `<ENV>` (bulletin-deploy `--env`) |
+  | ---------- | -------------------------------------------------------------------- | --------------------------------- |
+  | previewnet | `0x627f54413120c81161261b2ca87f60f0020963107dc28367491e09ec2dd29659` | `preview`                         |
+  | paseo      | `0x23e730eb1c6fecae09c917439a5038cb6122d0d48980e8b9bbf0ff56f94a2ca6` | `paseo-next-v2`                   |
 
 - **Target domain**: from the arguments if given (e.g. `browse.dot`), otherwise
   `browse-beta00.dot`. Derive the bare **label** by stripping a trailing `.dot`.

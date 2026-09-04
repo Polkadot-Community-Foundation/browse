@@ -19,8 +19,10 @@
 The backend layer behind Browse. A publishing registry where anyone can publish a product, and any client can read the published set back.
 
 Labels are published through [Publisher.sol](src/Publisher.sol), which records each published label
-and gates who can publish with proof-of-personhood and per-account rate limits. Attestations on
-products are indexed by resolvers bound to an attestation service.
+and gates who can publish. A publisher submits a ring-membership proof of personhood over
+`getPublishDigest(publisher, labelhash)`, which covers the chain, the registry, the publisher, and the
+label, so a proof is spendable once for one name. The daily rate limit is counted per person rather
+than per address. Attestations on products are indexed by resolvers bound to an attestation service.
 [RecipientAndAttesterIndexResolver.sol](src/RecipientAndAttesterIndexResolver.sol) groups attestation
 IDs by recipient, schema, and attester so the app can query them efficiently. It also gates new
 attestations on a bound identity: a product account first proves, once, that an identity authorized
@@ -39,37 +41,57 @@ deployment records live in [deployments.json](deployments.json).
 
 ### Testnets
 
-#### Paseo Next Asset Hub V2
+#### Paseo AssetHubNextV2
 
-Genesis `0xbf0488dbe9daa1de1c08c5f743e26fdc2a4ecd74cf87dd1b4b1eeb99ae4ef19f`.
+Genesis `0x23e730eb1c6fecae09c917439a5038cb6122d0d48980e8b9bbf0ff56f94a2ca6`.
 
-Version 2.1.0:
+TLD `.paseo`.
+
+Publisher 3.0.0:
 
 * **Publisher**:
-  * Contract: `0x0d30645f1d2c7dfa11926190e456a45db440581f`
+  * Contract: `0x01167f228A729f8e50f18aa7189f59b659155D09`
+  * Deployment and ABI: [Publisher.sol](src/Publisher.sol)
+  * Second in the SDK `PUBLISHER` array. Reads union every entry, writes go to the first, and this
+    one starts empty while 2.2.0 still holds the published set.
+
+Version 2.2.0:
+
+* **Publisher**:
+  * Contract: `0x1875B90A61705917945f9B7C6Ff7819Ad48A198e`
   * Deployment and ABI: [Publisher.sol](src/Publisher.sol)
 * **RecipientAndAttesterIndexResolver**:
-  * Contract: `0x1fa4627395455ec42cfb574c895b5bc5e9e40c4f`
+  * Contract: `0xAca17c2547f09b3AD0d3bd28Db11EE172604b85b`
   * Deployment and ABI: [RecipientAndAttesterIndexResolver.sol](src/RecipientAndAttesterIndexResolver.sol)
 * **TrustedAttesterIndexResolver**:
-  * Contract: `0x5abfc89934ee846d12629dfb5b22eecc59bbaed3`
+  * Contract: `0x8326c11a76Dda4702046e92f73C0ea7E698560a2`
   * Trusted attester: `0x35Cdb23fF7fc86E8DCcd577CA309bFEA9c978D20`
   * Deployment and ABI: [TrustedAttesterIndexResolver.sol](src/TrustedAttesterIndexResolver.sol)
 
-#### Previewnet Asset Hub
+#### Previewnet AssetHub
 
-Genesis `0x29f7b15e6227f86b90bf5199b5c872c28649a30e5f15fae6dd8fa9d5d48d6fbb`.
+Genesis `0x627f54413120c81161261b2ca87f60f0020963107dc28367491e09ec2dd29659`.
+
+TLD `.dot`.
+
+Publisher 3.0.0:
+
+* **Publisher**:
+  * Contract: `0x01167f228A729f8e50f18aa7189f59b659155D09`
+  * Deployment and ABI: [Publisher.sol](src/Publisher.sol)
+  * Second in the SDK `PUBLISHER` array. Reads union every entry, writes go to the first, and this
+    one starts empty while 2.1.0 still holds the published set.
 
 Version 2.1.0:
 
 * **Publisher**:
-  * Contract: `0xcea6551761b9ea035b1f2be5cddd9dd85148437d`
+  * Contract: `0x5a3c111278ec98f327466c9ab7a5e0e0f5047acc`
   * Deployment and ABI: [Publisher.sol](src/Publisher.sol)
 * **RecipientAndAttesterIndexResolver**:
-  * Contract: `0x2870c80ce3a18e1f1ffb9da2747347036355bd9a`
+  * Contract: `0x1563d8f5beab796529d1135d1600a3e75476a1da`
   * Deployment and ABI: [RecipientAndAttesterIndexResolver.sol](src/RecipientAndAttesterIndexResolver.sol)
 * **TrustedAttesterIndexResolver**:
-  * Contract: `0xdc713ebf1028544a00225c8741eb698253c49302`
+  * Contract: `0x956834cd15bf02d3d9bb427e86d7115f5b062927`
   * Trusted attester: `0x35Cdb23fF7fc86E8DCcd577CA309bFEA9c978D20`
   * Deployment and ABI: [TrustedAttesterIndexResolver.sol](src/TrustedAttesterIndexResolver.sol)
 

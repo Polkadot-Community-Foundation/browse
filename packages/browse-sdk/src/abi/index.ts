@@ -49,6 +49,7 @@ export {
   encodeOwner,
   encodePublishedCount,
   encodeSchemaCount,
+  encodeSetText,
   encodeText,
   encodeTrustedAttester
 } from './contracts.js'
@@ -59,4 +60,4 @@ export {
   type MulticallTarget,
   tryDecode
 } from './multicall.js'
-export { labelhashToTokenId, namehash, nodeToSubject } from './namehash.js'
+export { labelhashToTokenId, namehash, nodeToSubject, tldNode } from './namehash.js'

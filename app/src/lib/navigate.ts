@@ -1,12 +1,16 @@
-import { hostApi } from '@novasamatech/host-api-wrapper'
+import { nameWithTld } from '@parity/browse-sdk'
+import { navigateTo } from '@parity/product-sdk/host'
 
+import { NETWORK } from './config'
+import { isHosted } from './local-storage'
 import { appLink } from './share-link'
 
+/** Open an app by bare label. Standalone goes through {@link appLink}, which knows the network. */
 export function navigateToDomain(label: string) {
-  if (hostApi?.navigateTo) {
-    hostApi.navigateTo({ tag: 'v1', value: `${label}.dot` })
+  if (isHosted()) {
+    void navigateTo(nameWithTld(label, NETWORK.TLD))
   } else {
-    window.open(`https://${label}.dot.li`, '_blank', 'noopener')
+    window.open(appLink(label), '_blank', 'noopener')
   }
 }
 
@@ -17,8 +21,8 @@ export function navigateToDomain(label: string) {
  * redirect is seamless.
  */
 export function redirectToApp(label: string): void {
-  if (hostApi?.navigateTo) {
-    hostApi.navigateTo({ tag: 'v1', value: `${label}.dot` })
+  if (isHosted()) {
+    void navigateTo(nameWithTld(label, NETWORK.TLD))
   } else {
     window.location.replace(appLink(label))
   }

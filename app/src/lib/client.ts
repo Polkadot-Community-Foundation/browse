@@ -1,19 +1,12 @@
-import { createPapiProvider, hostApi } from '@novasamatech/host-api-wrapper'
 import {
   type BrowseSdk,
   createBrowseSdk,
   DEVNET_ASSETHUB_GENESIS,
-  PASEO_ASSETHUB_NEXT_V2_GENESIS,
-  PREVIEWNET_ASSETHUB_GENESIS,
-  SUMMIT_ASSETHUB_GENESIS
+  PASEONEXTV2_ASSETHUB_GENESIS,
+  PREVIEWNET_ASSETHUB_GENESIS
 } from '@parity/browse-sdk'
-import {
-  paseohub,
-  paseopeople,
-  previewnethub,
-  previewnetpeople,
-  summithub
-} from '@polkadot-api/descriptors'
+import { getHostProvider, isChainSupported } from '@parity/product-sdk/host'
+import { paseohub, paseopeople, previewnethub, previewnetpeople } from '@polkadot-api/descriptors'
 import {
   AccountId,
   createClient,
@@ -24,28 +17,24 @@ import {
 
 import { ASSETHUB_GENESIS, DUMMY_ORIGIN, NETWORK } from './config'
 
-const descriptor = ({
-  [PASEO_ASSETHUB_NEXT_V2_GENESIS]: paseohub,
+/** Generated Asset Hub bindings, keyed by genesis. */
+export const ASSETHUB_DESCRIPTOR_BY_GENESIS = {
+  [PASEONEXTV2_ASSETHUB_GENESIS]: paseohub,
   [PREVIEWNET_ASSETHUB_GENESIS]: previewnethub,
-  [SUMMIT_ASSETHUB_GENESIS]: summithub,
   // Products devnet is a standard Paseo Asset Hub (para 1000); its runtime API
   // matches the paseo hub descriptor. Mapping it explicitly keeps the map
   // exhaustive over NetworkGenesis (the bare `?? paseohub` fallback already
   // resolved devnet to the same descriptor at runtime).
   [DEVNET_ASSETHUB_GENESIS]: paseohub
-}[ASSETHUB_GENESIS] ?? paseohub) as typeof paseohub
+} as const
+
+const descriptor = (ASSETHUB_DESCRIPTOR_BY_GENESIS[ASSETHUB_GENESIS] ?? paseohub) as typeof paseohub
 
 export type PaseoHubApi = TypedApi<typeof paseohub>
 
 async function networkSupported(): Promise<boolean> {
-  const payload = {
-    tag: 'v1',
-    value: { tag: 'Chain', value: ASSETHUB_GENESIS }
-  } as Parameters<typeof hostApi.featureSupported>[0]
-  return hostApi.featureSupported(payload).match(
-    (ok) => ok.value !== false,
-    () => false
-  )
+  const result = await isChainSupported(ASSETHUB_GENESIS)
+  return result.ok ? result.value : false
 }
 
 // Async singleton
@@ -66,7 +55,11 @@ export function ensureBrowseSdk(): Promise<BrowseSdk> {
       if (!supported) {
         throw new Error(`Host does not support network ${ASSETHUB_GENESIS}`)
       }
-      const sdk = createBrowseSdk(NETWORK, createPapiProvider(ASSETHUB_GENESIS))
+      const provider = await getHostProvider(ASSETHUB_GENESIS)
+      if (!provider) {
+        throw new Error(`Host provider unavailable for network ${ASSETHUB_GENESIS}`)
+      }
+      const sdk = createBrowseSdk(NETWORK, provider)
       console.warn('debug network connection', JSON.stringify({ event: 'ensureBrowseSdk:created' }))
       return sdk
     })().catch((err) => {
@@ -253,7 +246,7 @@ export async function reviveCall(
 
 const PEOPLE_DESCRIPTOR_BY_ASSETHUB = {
   [PREVIEWNET_ASSETHUB_GENESIS]: previewnetpeople,
-  [PASEO_ASSETHUB_NEXT_V2_GENESIS]: paseopeople
+  [PASEONEXTV2_ASSETHUB_GENESIS]: paseopeople
 } as const
 
 type PeopleApi = TypedApi<typeof previewnetpeople>
@@ -281,7 +274,11 @@ export function ensurePeopleApi(): Promise<PeopleApi> {
       if (!genesis || !descriptor) {
         throw new Error(`No People chain configured for network ${ASSETHUB_GENESIS}`)
       }
-      const client = createClient(createPapiProvider(genesis))
+      const provider = await getHostProvider(genesis)
+      if (!provider) {
+        throw new Error(`Host provider unavailable for People chain ${genesis}`)
+      }
+      const client = createClient(provider)
       console.warn('debug network connection', JSON.stringify({ event: 'ensurePeopleApi:created' }))
       return client.getTypedApi(descriptor) as PeopleApi
     })().catch((err) => {

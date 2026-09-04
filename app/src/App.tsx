@@ -1,11 +1,12 @@
 import { type VNode } from 'preact'
 
 import { useDeferredValue } from 'preact/compat'
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks'
 
-import { createAccountsProvider } from '@novasamatech/host-api-wrapper'
+import { nameWithTld, stripTld } from '@parity/browse-sdk'
+import { getAccountsProvider, type HostSubscription } from '@parity/product-sdk/host'
 import { useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, ArrowUp, Bookmark, MoreVertical, Package, X } from 'lucide-preact'
+import { ArrowLeft, ArrowUp, Bookmark, Check, MoreVertical, Package, X } from 'lucide-preact'
 
 import { CategoryTabs } from './components/category-tabs'
 import { CertificateAuthorityManager } from './components/certificate-authority-manager'
@@ -13,6 +14,7 @@ import { CertificateBadge } from './components/certificate-badge'
 import { CertificateModal } from './components/certificate-modal'
 import { FollowingManager } from './components/following-manager'
 import { FOLLOW_ICON, SEARCH_ICON } from './components/icons'
+import { PlaceholderCard } from './components/placeholder-card'
 import { ProductCardWithAttestation } from './components/product-card/product-card-with-attestation'
 import { ProductCardSkeleton } from './components/product-card/skeleton'
 import { RecommendPrompt } from './components/recommend-prompt'
@@ -21,12 +23,14 @@ import { Toast } from './components/toast'
 import { ToastContext } from './components/toast/context'
 import { createBookmark, deleteBookmark, readBookmarks } from './db/bookmarks'
 import { upsertLabel } from './db/labels'
+import { readSortMode, writeSortMode } from './db/sort-preference'
 import { useEvent } from './hooks/use-event'
 import { useFlipReorder } from './hooks/use-flip'
 import { useOverscrollSync } from './hooks/use-overscroll-sync'
 import { resetBrowseSdk } from './lib/client'
-import { SELF_LABEL } from './lib/config'
+import { NETWORK, SELF_LABEL } from './lib/config'
 import { setupDebugConsole } from './lib/debug'
+import { destinationFromQuery, typedLabel } from './lib/destination'
 import { useDomainSuggestions } from './lib/domains-snapshot'
 import { navigateToDomain } from './lib/navigate'
 import { clearPendingRecommend, readPendingRecommends } from './lib/pending-recommend'
@@ -44,7 +48,8 @@ import {
   type AppEntry,
   filterApps,
   type FilterMode,
-  isFilterMode
+  isFilterMode,
+  type SortMode
 } from './state/apps/types'
 import {
   useCertificateAuthorities,
@@ -63,13 +68,27 @@ const SEARCH_GROUP_PRIORITY: FilterMode[] = ['bookmarks', 'following', 'all']
 // collapse into a `+N` chip.
 const MENU_BADGE_LIMIT = 3
 
+// The sort options shown in the drilled Order by view, each with a short
+// description of what it does.
+const SORT_OPTIONS: { key: SortMode; name: string; description: string }[] = [
+  {
+    key: 'relevant',
+    name: 'Relevant',
+    description: 'Ranked by recommendations, badges, and how recently it was published.'
+  },
+  { key: 'new', name: 'New', description: 'The most recently published apps first.' }
+]
+
 // Minimum time the loading dots stay up after a mobile pull-refresh, so the
 // gesture has visible feedback even when the connection reset resolves instantly.
 const PULL_REFRESH_MIN_VISIBLE_MS = 2000
 
+// Longest the loading dots stay up, whatever the sync is still doing.
+const SYNC_DOTS_MAX_VISIBLE_MS = 3000
+
 /**
  * Render a snapshot-only search result as a product card, lazily resolving its
- * name and icon (the snapshot carries only the `.dot` domain). Published entries
+ * name and icon, since the snapshot carries only the domain. Published entries
  * already have their metadata and render directly via `renderCard`.
  */
 function LazyResolvedCard({
@@ -88,6 +107,7 @@ export function App() {
   const attestProduct = useAttestProduct()
 
   const [currentMode, setCurrentMode] = useState<FilterMode>('all')
+  const [sortMode, setSortMode] = useState<SortMode>('new')
   const [query, setQuery] = useState('')
   const [debouncedQuery, setDebouncedQuery] = useState('')
   const [bookmarkedApps, setBookmarkedApps] = useState<Set<string>>(() => new Set())
@@ -103,7 +123,7 @@ export function App() {
   // anchored popover. The back arrow returns to the menu.
   // The cross closes the whole popover.
   const [menuOpen, setMenuOpen] = useState(false)
-  const [view, setView] = useState<'menu' | 'following' | 'badges'>('menu')
+  const [view, setView] = useState<'menu' | 'following' | 'badges' | 'order'>('menu')
   // Fixed viewport coordinates for the popover, measured off the trigger on open.
   const [anchor, setAnchor] = useState<{ top: number; right: number } | null>(null)
   // The popover height, animated to the measured content height of the active
@@ -113,6 +133,8 @@ export function App() {
   const [suggestionPrefix, setSuggestionPrefix] = useState('')
   // Touch devices get a minimum-visible hold on the dots after a pull-refresh.
   const [pullRefreshFloor, setPullRefreshFloor] = useState(false)
+  // True once the dots have been up for their whole allowance.
+  const [syncDotsExpired, setSyncDotsExpired] = useState(false)
   // Nonce that commits the current display order into a sticky snapshot.
   const [orderNonce, setOrderNonce] = useState(0)
   const [certificateModalOpen, setCertificateModalOpen] = useState(false)
@@ -149,7 +171,7 @@ export function App() {
   const drillInnerRef = useRef<HTMLDivElement>(null)
   // Holds the last drilled view while collapsing back to the menu so its content
   // doesn't blank mid-transition.
-  const lastDrillRef = useRef<'following' | 'badges'>('following')
+  const lastDrillRef = useRef<'following' | 'badges' | 'order'>('following')
 
   // Derived state and query data. This is one dependency chain, not a reorderable
   // set: each query feeds a memo that feeds the next, so the kinds necessarily
@@ -219,6 +241,27 @@ export function App() {
     () => certificateAuthorities.filter((ca) => selectedResolvers.has(ca.resolver.toLowerCase())),
     [certificateAuthorities, selectedResolvers]
   )
+  /**
+   * Trim an entry to what this user should see.
+   *
+   * Badges from selected authorities only, since hydration caches them all, plus
+   * the recommend state this identity already holds. Every card goes through this,
+   * including the one built from a resolved address, or a typed address would show
+   * badges the user switched off and a recommend button that forgot itself.
+   */
+  const scopeToUser = useCallback(
+    (app: AppEntry): AppEntry => {
+      const visible = app.certificates.filter((c) =>
+        selectedResolvers.has(c.resolver.toLowerCase())
+      )
+      const scoped =
+        visible.length === app.certificates.length ? app : { ...app, certificates: visible }
+      return myRecommendations.has(scoped.label) && !scoped.hasUserAttested
+        ? { ...scoped, hasUserAttested: true }
+        : scoped
+    },
+    [selectedResolvers, myRecommendations]
+  )
   const appsForFiltering = useMemo(() => {
     const byLabel = new Map<string, AppEntry>()
     for (const app of allApps) byLabel.set(app.label, app)
@@ -242,20 +285,8 @@ export function App() {
     }
     for (const label of followingDisplay) addLabel(label)
     for (const label of bookmarkedApps) addLabel(label)
-    // The recommend button is active when this identity recommended the app,
-    // preserving any optimistic `hasUserAttested` from a just-submitted toggle.
-    return [...byLabel.values()].map((app) => {
-      // Show only badges from selected authorities. Hydration cached them all.
-      const visible = app.certificates.filter((c) =>
-        selectedResolvers.has(c.resolver.toLowerCase())
-      )
-      const scoped =
-        visible.length === app.certificates.length ? app : { ...app, certificates: visible }
-      return myRecommendations.has(scoped.label) && !scoped.hasUserAttested
-        ? { ...scoped, hasUserAttested: true }
-        : scoped
-    })
-  }, [allApps, followingDisplay, bookmarkedApps, labelDb, myRecommendations, selectedResolvers])
+    return [...byLabel.values()].map(scopeToUser)
+  }, [allApps, followingDisplay, bookmarkedApps, labelDb, scopeToUser])
   // Labels from the Publisher set, used to scope the All tab to published apps
   // only (bookmarked/followed entries belong to their own tabs).
   const publishedLabels = useMemo(() => new Set(allApps.map((app) => app.label)), [allApps])
@@ -266,7 +297,8 @@ export function App() {
       currentMode,
       bookmarkedApps,
       followingDisplay,
-      publishedLabels
+      publishedLabels,
+      sortMode
     )
     if (currentMode === 'all' && !deferredQuery.trim()) {
       return result.filter((app) => app.label !== SELF_LABEL)
@@ -278,7 +310,8 @@ export function App() {
     currentMode,
     bookmarkedApps,
     followingDisplay,
-    publishedLabels
+    publishedLabels,
+    sortMode
   ])
   orderSourceRef.current = filtered
   // While the user is typing, search ignores tabs.
@@ -302,49 +335,62 @@ export function App() {
       }
     }
     // The app itself (SELF_LABEL, derived from APP_DOTNS_DOMAIN) only belongs in
-    // search on an exact name match, the label or `<label>.dot`. Never as a
+    // search on an exact name match, the label or its full name. Never as a
     // partial/substring hit.
-    const normalizedQuery = deferredQuery
-      .trim()
-      .toLowerCase()
-      .replace(/\.dot$/, '')
+    const normalizedQuery = stripTld(deferredQuery.trim(), NETWORK.TLD)
     const exactSelf = normalizedQuery === SELF_LABEL
     return exactSelf ? matches : matches.filter((app) => app.label !== SELF_LABEL)
   }, [deferredQuery, appsForFiltering, bookmarkedApps, followingDisplay, publishedLabels])
-  const tryLabel = query
-    .trim()
-    .toLowerCase()
-    .replace(/\.dot$/, '')
-  const resolverLabel = debouncedQuery
-    .trim()
-    .toLowerCase()
-    .replace(/\.dot$/, '')
-  const shouldResolve = debouncedQuery === query && resolverLabel.length >= 3
-  const { data: resolvedApp, isFetching: resolverFetching } = useResolveLabel(
-    resolverLabel,
-    shouldResolve
+  // Non-null is the whole condition for showing a card, so navigating never
+  // depends on what search or the network returned.
+  const destination = destinationFromQuery(query)
+  const debouncedDestination = destinationFromQuery(debouncedQuery)
+  // The local entry for the address, if we hold one at all. `published` is the
+  // finished article and needs no lookup. `cached` may be a bookmarked or followed
+  // label carrying a name and icon but no content, which is still far better than a
+  // placeholder while the resolver runs.
+  const indexed = useMemo(() => {
+    const entry = destination
+      ? (appsForFiltering.find((app) => app.label === destination) ?? null)
+      : null
+    return { published: entry?.contentHash ? entry : null, cached: entry }
+  }, [destination, appsForFiltering])
+  // No length floor. A single character is a registerable name, and gating the lookup would
+  // leave a short address stuck as a placeholder forever. One read per settled
+  // query, cached for a minute, so the cost is bounded by the debounce.
+  const canResolve = destination !== null && indexed.published === null
+  const destinationSettled = destination !== null && debouncedDestination === destination
+  const { data: resolvedDestination } = useResolveLabel(
+    debouncedDestination ?? '',
+    canResolve && destinationSettled
   )
-  // Domain-snapshot suggestion prefix: the raw query (trailing `.dot` stripped,
+  // A resolution describes the debounced address, so a card showing a newer one
+  // must not wear it.
+  const resolvedApp =
+    canResolve && destinationSettled && resolvedDestination
+      ? scopeToUser(resolvedDestination)
+      : null
+  // Best card we can put at the front, in descending order of what we know. The
+  // cached entry ranks last but still beats a placeholder, and ranking it below the
+  // resolver lets a lookup upgrade it.
+  const frontApp = indexed.published ?? resolvedApp ?? indexed.cached
+  // Domain-snapshot suggestion prefix: the raw query (trailing suffix stripped,
   // lowercased), debounced ~150ms into suggestionPrefix by an effect below. A
   // local snapshot lookup, independent of the 500ms debouncedQuery.
-  const suggestionPrefixSource = query
-    .trim()
-    .toLowerCase()
-    .replace(/\.dot$/, '')
+  const suggestionPrefixSource = stripTld(query.trim(), NETWORK.TLD)
   const { data: domainSuggestions = [] } = useDomainSuggestions(suggestionPrefix)
   // Merge the search results shown while typing: published matches (with real
-  // metadata and icons) first, then every other `.dot` name from the snapshot
-  // as a minimal entry (Identicon and `<label>.dot`). Deduped by label.
+  // metadata and icons) first, then every other name from the snapshot
+  // as a minimal entry (Identicon and the full name). Deduped by label.
+  //
+  // The card at the front owns the typed address, so the list never repeats it,
+  // whichever of the three sources it arrived from.
   const searchEntries = useMemo<{ app: AppEntry; snapshotOnly: boolean }[]>(() => {
     if (!searchMatches) return []
-    const published = [
-      ...searchMatches,
-      ...(resolvedApp && !searchMatches.some((app) => app.label === resolvedApp.label)
-        ? [resolvedApp]
-        : [])
-    ]
+    const published = searchMatches.filter((app) => app.label !== destination)
     const known = new Set(published.map((app) => app.label))
     known.add(SELF_LABEL)
+    if (destination) known.add(destination)
     const snapshotOnly = domainSuggestions
       .filter((label) => !known.has(label))
       .map((label) => ({
@@ -363,14 +409,7 @@ export function App() {
         snapshotOnly: true
       }))
     return [...published.map((app) => ({ app, snapshotOnly: false })), ...snapshotOnly]
-  }, [searchMatches, resolvedApp, domainSuggestions])
-  // True while a search is in flight: typing hasn't settled (debounce or
-  // useDeferredValue), or the on-chain resolver is fetching.
-  const isSearching =
-    query.length > 0 &&
-    (deferredQuery !== query ||
-      debouncedQuery !== query ||
-      (resolverLabel.length >= 3 && resolverFetching))
+  }, [searchMatches, destination, domainSuggestions])
   const isLoading =
     currentMode === 'bookmarks'
       ? false
@@ -379,16 +418,18 @@ export function App() {
         : allFetching
   // Loading dots track the live sync. A mobile pull-refresh additionally holds
   // them for a minimum window so the gesture doesn't flash.
-  const showSyncDots = (isLoading && !query && filtered.length > 0) || pullRefreshFloor
+  const syncDotsWanted = (isLoading && !query && filtered.length > 0) || pullRefreshFloor
+  // Capped, so they never outstay {@link SYNC_DOTS_MAX_VISIBLE_MS}.
+  const showSyncDots = syncDotsWanted && !syncDotsExpired
   // Showing skeletons.
   const coldStart = isLoading && filtered.length === 0 && !query
   const membershipKey = useMemo(
     () =>
-      `${currentMode}:${filtered
+      `${currentMode}:${sortMode}:${filtered
         .map((app) => app.label)
         .sort()
         .join(',')}`,
-    [currentMode, filtered]
+    [currentMode, sortMode, filtered]
   )
   const orderedLabels = useMemo(
     () => orderSourceRef.current.map((app) => app.label),
@@ -396,12 +437,15 @@ export function App() {
   )
   // Apply the sticky order to the live entries, so counts stay optimistic while
   // positions hold until commit.
+  // The card at the front owns the typed address here too. `searchEntries` is
+  // derived from the debounced query, so on the first keystroke this list is what
+  // still renders, and without the filter it would repeat that label for a frame.
   const orderedFiltered = useMemo(() => {
     const byLabel = new Map(filtered.map((app) => [app.label, app]))
     return orderedLabels
       .map((label) => byLabel.get(label))
-      .filter((app): app is AppEntry => app != null)
-  }, [orderedLabels, filtered])
+      .filter((app): app is AppEntry => app != null && app.label !== destination)
+  }, [orderedLabels, filtered, destination])
   // Key off what renders, so a search reorder glides under one pass.
   const flipKey = useMemo(() => {
     if (searchMatches) {
@@ -468,6 +512,10 @@ export function App() {
       setToastMessage(message)
     }
   )
+  const handleSort = useEvent((sort: SortMode) => {
+    setSortMode(sort)
+    void writeSortMode(sort)
+  })
   const handleFollow = useEvent((address: string, username?: string) => {
     follow(address, username)
     setFollowing((prev) => [...prev, { address, username }])
@@ -488,7 +536,7 @@ export function App() {
     const url = shareLink(app.label)
     if (typeof navigator.share === 'function') {
       try {
-        await navigator.share({ title: app.name ?? `${app.label}.dot`, url })
+        await navigator.share({ title: app.name ?? nameWithTld(app.label, NETWORK.TLD), url })
         return
       } catch (err) {
         // The user dismissed the sheet: leave it, don't fall back to a copy.
@@ -563,14 +611,31 @@ export function App() {
     heroLabelRef.current = label
     setOrderNonce((n) => n + 1)
   })
-  // Open the popover, anchoring it right-aligned under the ⋮ by measuring the
-  // trigger. `next` lets the empty-state button expand straight into Following.
-  const openMenu = (next: 'menu' | 'following' = 'menu') => {
+  // Right-align the popover under the ⋮ by measuring the trigger. These are
+  // viewport coordinates on a fixed element, so anything that moves the trigger
+  // has to measure again or the popover floats detached.
+  const anchorToTrigger = () => {
     const rect = triggerRef.current?.getBoundingClientRect()
     if (rect) setAnchor({ top: rect.bottom + 8, right: window.innerWidth - rect.right })
+  }
+  // Open the popover under the ⋮. `next` lets the empty-state button expand
+  // straight into Following.
+  const openMenu = (next: 'menu' | 'following' = 'menu') => {
+    anchorToTrigger()
     setView(next)
     setMenuOpen(true)
   }
+
+  // Start the dots allowance when they go up, and reset it when they come down so
+  // the next refresh gets a full window of its own.
+  useEffect(() => {
+    if (!syncDotsWanted) {
+      setSyncDotsExpired(false)
+      return
+    }
+    const id = setTimeout(() => setSyncDotsExpired(true), SYNC_DOTS_MAX_VISIBLE_MS)
+    return () => clearTimeout(id)
+  }, [syncDotsWanted])
 
   // Debounce the snapshot-suggestion prefix ~150ms behind the raw query.
   useEffect(() => {
@@ -600,15 +665,22 @@ export function App() {
   }, [resolvedApp, queryClient])
   // Subscribe to account connection status.
   useEffect(() => {
-    const provider = createAccountsProvider()
-    const sub = provider.subscribeAccountConnectionStatus((status) => {
-      console.warn(
-        'debug network connection',
-        JSON.stringify({ event: 'accountConnectionStatus', status })
-      )
-      setSigned(status === 'connected')
+    let cancelled = false
+    let sub: HostSubscription | undefined
+    void getAccountsProvider().then((provider) => {
+      if (cancelled || !provider) return
+      sub = provider.subscribeAccountConnectionStatus((status) => {
+        console.warn(
+          'debug network connection',
+          JSON.stringify({ event: 'accountConnectionStatus', status })
+        )
+        setSigned(status === 'Connected')
+      })
     })
-    return () => sub.unsubscribe()
+    return () => {
+      cancelled = true
+      sub?.unsubscribe()
+    }
   }, [])
   useEffect(() => subscribeHostTheme(), [])
   useEffect(() => () => clearTimeout(pullFloorTimer.current), [])
@@ -625,6 +697,7 @@ export function App() {
       setBookmarkedAppsLoaded(true)
     })
     getFollowing().then(setFollowing)
+    readSortMode().then(setSortMode)
   }, [])
   useEffect(() => {
     if (!bookmarkedAppsLoaded || initialTabPicked.current) return
@@ -674,23 +747,31 @@ export function App() {
     const id = setTimeout(() => setDebouncedQuery(query), 500)
     return () => clearTimeout(id)
   }, [query])
-  // Always reopen on the menu view.
+  // Reopen on the menu view at its natural height. Clearing the measured height
+  // on close means the next open starts at the menu height instead of animating
+  // down from the taller Badges height.
   useEffect(() => {
-    if (!menuOpen) setView('menu')
+    if (!menuOpen) {
+      setView('menu')
+      setPopoverHeight(undefined)
+    }
   }, [menuOpen])
-  // Light-dismiss the popover on Escape, or any scroll or resize so it never
-  // floats detached from the trigger. Scroll is captured so a scroll inside the
-  // app list, not just the window, also closes it. Outside clicks close via the
-  // transparent catcher rendered under the popover.
+  // Light-dismiss the popover on Escape or on a page scroll, which is what a
+  // dropdown anchored to a scrolling page should do. Scroll is captured so a
+  // scroll inside the app list, not just the window, also closes it. A resize
+  // re-measures instead of closing, because on a phone the resize is the
+  // on-screen keyboard opening for a field in the popover itself. Outside clicks
+  // close via the transparent catcher rendered under the popover.
   useEffect(() => {
     if (!menuOpen) return
-    const close = () => setMenuOpen(false)
     const onScroll = (e: Event) => {
       // Ignore scrolling inside the popover itself, and the scroll a focused
       // embedded input triggers as it settles. Only the page scrolling out from
       // under the trigger should close it.
       const target = e.target
       if (target instanceof Node && popoverRef.current?.contains(target)) return
+      const active = document.activeElement
+      if (active instanceof Node && popoverRef.current?.contains(active)) return
       setMenuOpen(false)
     }
     const onKey = (e: KeyboardEvent) => {
@@ -698,11 +779,11 @@ export function App() {
     }
     window.addEventListener('keydown', onKey)
     window.addEventListener('scroll', onScroll, true)
-    window.addEventListener('resize', close)
+    window.addEventListener('resize', anchorToTrigger)
     return () => {
       window.removeEventListener('keydown', onKey)
       window.removeEventListener('scroll', onScroll, true)
-      window.removeEventListener('resize', close)
+      window.removeEventListener('resize', anchorToTrigger)
     }
   }, [menuOpen])
   // Animate the popover height to the natural content height of the active view,
@@ -742,7 +823,7 @@ export function App() {
       onClickCertificate={(certificate) => {
         setCertificateView({
           subjectName: app.name,
-          subjectDomain: `${app.label}.dot`,
+          subjectDomain: nameWithTld(app.label, NETWORK.TLD),
           certificate
         })
         setCertificateModalOpen(true)
@@ -803,6 +884,19 @@ export function App() {
               )}
 
               <div class='app-list' id='app-list' ref={appListRef}>
+                {/* The typed address, first in the list and otherwise an ordinary
+                    card. A placeholder until it resolves to something published.
+                    Never conditional on the search result. */}
+                {destination &&
+                  (frontApp ? (
+                    renderCard(frontApp, -1)
+                  ) : (
+                    <PlaceholderCard
+                      label={typedLabel(query)}
+                      target={destination}
+                      onGo={navigateToDomain}
+                    />
+                  ))}
                 {coldStart ? (
                   Array.from({ length: 6 }, (_, i) => <ProductCardSkeleton key={`sk-${i}`} />)
                 ) : emptyAll ? (
@@ -853,29 +947,18 @@ export function App() {
                       renderCard(app, -1)
                     )
                   )
-                ) : searchMatches ? (
-                  isSearching ? (
-                    <div class='empty-state'>
-                      <p class='empty-state__text'>Searching for "{query}"…</p>
-                      <div class='loading-dots loading-dots--inline'>
-                        <span class='loading-dots__dot' />
-                        <span class='loading-dots__dot' />
-                        <span class='loading-dots__dot' />
-                      </div>
-                    </div>
-                  ) : (
-                    <div class='empty-state'>
-                      <div class='empty-state__icon'>{SEARCH_ICON}</div>
-                      <p class='empty-state__text'>No products matching "{query}"</p>
-                      <button
-                        class='empty-state__btn-ghost'
-                        onClick={() => navigateToDomain(tryLabel)}
-                      >
-                        Try {tryLabel}.dot anyway
-                      </button>
-                    </div>
-                  )
-                ) : (
+                ) : searchMatches && !destination ? (
+                  // Only when the text names no address, since a card above already
+                  // answers. No in-flight variant either: swapping the list for a
+                  // progress message read as the results being taken away.
+                  <div class='empty-state'>
+                    <div class='empty-state__icon'>{SEARCH_ICON}</div>
+                    <p class='empty-state__text'>
+                      No results for
+                      <span class='empty-state__query'>"{query}"</span>
+                    </p>
+                  </div>
+                ) : searchMatches ? null : (
                   orderedFiltered.map((app, i) => renderCard(app, i))
                 )}
               </div>
@@ -916,7 +999,7 @@ export function App() {
             <div class='customize-popover-catcher' onClick={() => setMenuOpen(false)} />
             <div
               ref={popoverRef}
-              class='customize-popover'
+              class={`customize-popover${view === 'badges' ? ' customize-popover--wide' : ''}`}
               role='dialog'
               aria-label='Customize'
               style={{ top: anchor.top, right: anchor.right, height: popoverHeight }}
@@ -926,6 +1009,16 @@ export function App() {
               >
                 <div class='customize-pane' aria-hidden={view !== 'menu'}>
                   <div class='customize-pane__inner' ref={menuInnerRef}>
+                    <button
+                      type='button'
+                      class='customize-nav-row'
+                      onClick={() => setView('order')}
+                    >
+                      <span class='customize-nav-row__label'>Order by</span>
+                      <span class='customize-nav-row__value'>
+                        {sortMode === 'new' ? 'New' : 'Relevant'}
+                      </span>
+                    </button>
                     <button
                       type='button'
                       class='customize-nav-row'
@@ -965,7 +1058,7 @@ export function App() {
                 </div>
                 <div class='customize-pane' aria-hidden={view === 'menu'}>
                   <div
-                    class='customize-pane__inner customize-pane__inner--drill'
+                    class={`customize-pane__inner customize-pane__inner--drill${drill === 'order' ? ' customize-pane__inner--fit' : ''}`}
                     ref={drillInnerRef}
                   >
                     <div class='customize-drill__header'>
@@ -978,7 +1071,11 @@ export function App() {
                         <ArrowLeft size={20} />
                       </button>
                       <span class='customize-drill__title'>
-                        {drill === 'following' ? 'Following' : 'Badges'}
+                        {drill === 'following'
+                          ? 'Following'
+                          : drill === 'order'
+                            ? 'Order by'
+                            : 'Badges'}
                       </span>
                       <button
                         type='button'
@@ -998,6 +1095,27 @@ export function App() {
                         onRemove={handleUnfollow}
                         onDismiss={() => setMenuOpen(false)}
                       />
+                    ) : drill === 'order' ? (
+                      <div class='order-panel' role='radiogroup' aria-label='Order by'>
+                        {SORT_OPTIONS.map((option) => (
+                          <button
+                            key={option.key}
+                            type='button'
+                            role='radio'
+                            aria-checked={sortMode === option.key}
+                            class='order-panel__option'
+                            onClick={() => handleSort(option.key)}
+                          >
+                            <span class='order-panel__text'>
+                              <span class='order-panel__name'>{option.name}</span>
+                              <span class='order-panel__desc'>{option.description}</span>
+                            </span>
+                            {sortMode === option.key && (
+                              <Check size={18} class='order-panel__check' />
+                            )}
+                          </button>
+                        ))}
+                      </div>
                     ) : (
                       <CertificateAuthorityManager embedded />
                     )}
