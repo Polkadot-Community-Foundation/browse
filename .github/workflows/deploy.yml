@@ -228,7 +228,7 @@ jobs:
           # PCF fork of bulletin-deploy (renamed), published under the
           # @polkadot-community-foundation scope. Pinned, not @latest, so a CLI
           # release cannot silently change a deploy.
-          npm install -g @polkadot-community-foundation/polkadot-app-deploy@0.13.1
+          npm install -g @polkadot-community-foundation/polkadot-app-deploy@0.16.1
           # Scoped symlink so require.resolve('@polkadot-community-foundation/
           # polkadot-app-deploy') resolves from app/ (the root export is ESM-only
           # and false-fails a bare require.resolve otherwise).
