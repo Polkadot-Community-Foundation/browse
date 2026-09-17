@@ -93,6 +93,12 @@ jobs:
           else
             REF="${{ github.event.pull_request.head.ref || github.ref_name }}"
             SANITIZED=$(echo "$REF" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g' | sed 's/--*/-/g' | sed 's/^-//' | sed 's/-$//' | cut -c1-48)
+            # DotNS accepts exactly zero or two trailing digits, and the "00"
+            # preview suffix supplies the two. A branch that ends in a digit
+            # would push the count past two, so separate it with a letter.
+            case "$SANITIZED" in
+              *[0-9]) SANITIZED="${SANITIZED}-x" ;;
+            esac
             echo "value=${DOMAIN}-${SANITIZED}00.${TLD}" >> "$GITHUB_OUTPUT"
           fi
 

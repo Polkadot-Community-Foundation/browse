@@ -10,14 +10,17 @@ workspace and excluded from the app typecheck sweep. Its
 on, so deploy from the project directory without overriding either:
 
 ```bash
-cd calculator   # or stopwatch, chess-clock, alarm, countdown
+cd calculator   # or stopwatch, chess-clock, unit-converter, alarm, countdown
 bun install
 bun run build
-bulletin-deploy dist calculator.test --env preview --publish
+bulletin-deploy dist calculator.testnet --env preview
 ```
 
-`calculator`, `stopwatch` and `chess-clock` are **published**, so they appear in
-the All tab.
+`calculator`, `stopwatch`, `chess-clock` and `unit-converter` are **published**,
+so they appear in the All tab. Four is a floor, not a coincidence: app-start
+asserts `.product-card` at `nth(3)` and a label cache above three entries, and
+the refocus test needs a list big enough that the sync dots outlast a 5s poll.
+Drop one and three tests fail.
 
 `chess-clock` deploys to previewnet and to paseo, which register the same label
 under a different TLD, so it takes its domain from `MANIFEST_DOMAIN`:
@@ -36,5 +39,7 @@ Base names are 9 characters or more because DotNS gates shorter ones. Names of 5
 characters or fewer are reserved for governance, and 6 to 8 require the signer to
 hold ProofOfPersonhoodFull, which a fixture deploy should not depend on.
 
-The suite also expects `host-playground.testnet` published. That one deploys from
-its own repo.
+Every project the suite needs lives here. The recommend, motion and share specs
+used to point at `host-playground`, which deploys from a repo this one does not
+own, so a network rebuild depended on a checkout nobody was guaranteed to have.
+They point at `chess-clock` now.

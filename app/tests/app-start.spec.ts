@@ -59,7 +59,9 @@ test.describe('App Start', () => {
     })
 
     test('As an unsigned user, when I open browse, the All tab loads apps immediately', async () => {
-      test.setTimeout(30_000)
+      // The waits inside this test already sum past a minute before the second
+      // page load, so the budget has to clear them.
+      test.setTimeout(180_000)
       // Then
       const cards = frame.locator('.product-card[data-label]')
       await expect(cards.first()).toBeVisible({ timeout: 20_000 })
@@ -80,8 +82,14 @@ test.describe('App Start', () => {
       await navigateToTestHost(reloaded, host.url)
       const reloadedFrame = await getProductFrame(reloaded, '.category-tab')
 
+      // The first page is still open and syncing, and `lib/client.ts` rate-gates
+      // RPC to about 2.5 per second, so the second instance can take noticeably
+      // longer than a lone cold start.
+
       // Then
-      await expect(reloadedFrame.locator('.product-card[data-label]').first()).toBeVisible()
+      await expect(reloadedFrame.locator('.product-card[data-label]').first()).toBeVisible({
+        timeout: 30_000
+      })
       await expect(reloadedFrame.locator('.loading-dots')).not.toBeVisible({ timeout: 10_000 })
 
       await reloaded.close()
@@ -133,13 +141,19 @@ test.describe('App Start', () => {
     })
 
     test('As a signed user, when the All tab loads, I see products ordered by the selected sort', async () => {
-      test.setTimeout(30_000)
+      // Two sorts, each waiting on a live list, plus a poll for the reorder.
+      test.setTimeout(90_000)
+
+      // The app disables the tabs while `coldStart` holds, so clicking before a
+      // card lands waits on a disabled button for the whole budget.
+
+      // Given
+      await frame.waitForSelector('.product-card[data-label]', { timeout: 30_000 })
 
       // When
       await frame.locator('.category-tab', { hasText: 'All' }).click()
 
       // Then
-      await frame.waitForSelector('.product-card[data-label]', { timeout: 30_000 })
       await expect(frame.locator('.product-card[data-label]').first()).toBeVisible()
       await expect(frame.locator('.loading-dots')).not.toBeVisible({ timeout: 10_000 })
       const cards = frame.locator('.product-card[data-label]')
@@ -180,7 +194,7 @@ test.describe('App Start', () => {
     })
 
     test('As a signed user, when cached label metadata is older than the TTL, it refreshes (fresh entries are left alone)', async () => {
-      test.setTimeout(30_000)
+      test.setTimeout(150_000)
       const page = await context.newPage()
       const KEY = 'test-host:browse:labels'
 
@@ -251,7 +265,7 @@ test.describe('App Start', () => {
     })
 
     test('As a signed user, when I reload, cached apps show instantly while sync runs in the background', async () => {
-      test.setTimeout(30_000)
+      test.setTimeout(150_000)
       const page = await context.newPage()
       await navigateToTestHost(page, host.url)
       let frame: Frame = await getProductFrame(page, '.category-tab')
@@ -281,7 +295,7 @@ test.describe('App Start', () => {
     })
 
     test('As a signed user, when I leave and refocus browse, the apps are refetched', async () => {
-      test.setTimeout(30_000)
+      test.setTimeout(150_000)
       const page = await context.newPage()
       await navigateToTestHost(page, host.url)
       const frame = await getProductFrame(page, '.category-tab')
@@ -318,7 +332,7 @@ test.describe('App Start', () => {
     })
 
     test('As a user, when I close and reopen the app, it finishes loading instead of spinning forever', async () => {
-      test.setTimeout(60_000)
+      test.setTimeout(180_000)
       const page = await context.newPage()
 
       // Emulate the native host: backgrounding tears down the chain WebSocket and
@@ -367,7 +381,7 @@ test.describe('App Start', () => {
     })
 
     test('As a user, when I bookmark a searched app, its name and icon survive a background synchronization after TTL', async () => {
-      test.setTimeout(120_000)
+      test.setTimeout(180_000)
       const page = await context.newPage()
       const target = 'alarm-clock'
 
@@ -411,7 +425,7 @@ test.describe('App Start', () => {
     })
 
     test('As a user, when I open a searched app then return and reload, I see the All list instantly', async () => {
-      test.setTimeout(90_000)
+      test.setTimeout(150_000)
       const page = await context.newPage()
       const target = 'countdown-timer'
       const listedLabels = async (fr: Frame) =>

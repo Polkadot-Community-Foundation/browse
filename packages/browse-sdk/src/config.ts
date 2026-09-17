@@ -48,50 +48,46 @@ export interface NetworkConfig {
 }
 
 export const PASEONEXTV2_ASSETHUB_GENESIS =
-  '0x23e730eb1c6fecae09c917439a5038cb6122d0d48980e8b9bbf0ff56f94a2ca6' as const
+  '0x4349b00e54897e21196fd331015fc5be0f14e118beb0375ed2bb1793737bb57a' as const
 
 export const PREVIEWNET_ASSETHUB_GENESIS =
-  '0x627f54413120c81161261b2ca87f60f0020963107dc28367491e09ec2dd29659' as const
+  '0xc27c8bf3f13f96dc2130cd2b0a3debe57618fd02521ecc1902bd7dd4ed83d2fe' as const
 
 export const DEVNET_ASSETHUB_GENESIS =
-  "0xd6eec26135305a8ad257a20d003357284c8aa03d0bdb2b357ab0a22371e11ef2" as const;
+  '0xd6eec26135305a8ad257a20d003357284c8aa03d0bdb2b357ab0a22371e11ef2' as const
 
 export const KNOWN_NETWORKS = {
   [PASEONEXTV2_ASSETHUB_GENESIS]: {
-    // PCF-owned suite on paseo-next AH-1500 (DotNS manifest
-    // dotns deployments/paseo-next-asset-hub/420420417.json, verified on-chain).
-    // These are OUR deployments, not upstream's — upstream's entry points at
-    // Parity's own suite on the same chain.
-    MULTICALL3: '0x1C1044BEa5bDe0F435436bB52A8340fBE1D59847',
-    STORE_FACTORY: '0x2947af3CBFb45b89610524a25921C32cB65C4C39',
-    CONTENT_RESOLVER: '0xf110e5799c3f0adb8ED885C02c45Ecfe7fD86226',
-    REGISTRY: '0xFb7AB7E142ED0248D77198CA8722D67C1930D783',
-    REGISTRAR: '0xf3969bCBE60463302306663C62A6A8ef91ab9aA5',
-    // PCF suite was not deployed through a Create3Factory.
-    CREATE3_FACTORY: null,
+    MULTICALL3: '0xB4468000abD87D3c56cbFBd153161223D7b109e5',
+    STORE_FACTORY: '0x709A027F446a9e2a4BB9cb9a9c754435b19e32B7',
+    CONTENT_RESOLVER: '0x7F74D7CD50f5a834270E2ad395a01b01891AB37d',
+    REGISTRY: '0xf34054fd76BbF85f216cf9908226D5f0A72E50CA',
+    REGISTRAR: '0x4f06E818Ba3d987704fd91cf3d868E4b019106Ab',
+    CREATE3_FACTORY: '0x8533c79E058c5a6489CAFeCA86dc600E029D75f5',
     TLD: 'paseo',
     PUBLISHER: [
       {
-        version: '2.1.0',
-        address: '0x234e434e66f246def2207558dcdb0585d2de9fdc'
+        version: '3.1.0',
+        address: '0xAa189B1D4F65CF6e5D0baD734F6C876f2E12F984'
+      },
+      {
+        version: '3.0.0',
+        address: '0x01167f228A729f8e50f18aa7189f59b659155D09'
       }
     ],
-    SCHEMA_REGISTRY: '0x358e11d99749a81fc02eb20d8e4732619caea0a0',
-    ATTESTATION_SERVICE: '0x110877cc32b31ea6a11c60b2e4d2c37cbb97bb3e',
-    ATTESTATION_INDEX_RESOLVER: ['0x4a6c08e97ace2d3e3ff9d4a877c36a67ae307b1a'],
-    TRUSTED_ATTESTER_RESOLVER: '0x6a1421a1f0f1535e402d8655ea253e21dc5d9894',
-    TRUSTED_ATTESTER: '0xF8d186c352e2ea0B9C02c211525A20DdcB8CD2dD',
+    SCHEMA_REGISTRY: '0xd8af2626d3c5d990ae75077de3c5d9bb5e71de1e',
+    ATTESTATION_SERVICE: '0x37e7021fd6e44d5cdc17847b33388d6d6eff63cd',
+    ATTESTATION_INDEX_RESOLVER: ['0xAca17c2547f09b3AD0d3bd28Db11EE172604b85b'],
+    TRUSTED_ATTESTER_RESOLVER: '0x8326c11a76Dda4702046e92f73C0ea7E698560a2',
+    TRUSTED_ATTESTER: '0x35Cdb23fF7fc86E8DCcd577CA309bFEA9c978D20',
     IPFS_GATEWAY: 'https://paseo-bulletin-next-ipfs.polkadot.io',
     PRIMARY_WEB_DOMAIN: 'paseo.li',
     SECONDARY_WEB_DOMAIN: 'paseoli.dev',
     SNAPSHOT_POINTER_DOMAIN: 'browse.paseo',
-    // PCF paseo-next attestation stack: single resolver -> single schema (keep in
-    // sync with ATTESTATION_INDEX_RESOLVER length; upstream's [5n, 1n] is their
-    // own deployment, not ours).
     SCHEMA_ID: [1n],
     COMPLIANCE_SCHEMA_ID: 2n,
     ASSETHUB_RPCS: ['wss://paseo-asset-hub-next-rpc.polkadot.io'],
-    PEOPLE_GENESIS: '0xc5af1826b31493f08b7e2a823842f98575b806a784126f28da9608c68665afa5',
+    PEOPLE_GENESIS: '0x4a2b5b737de1da59e209b0000a876ec2fa20035dc34fd292a848da32d255ad48',
     PEOPLE_RPCS: ['wss://paseo-people-next-system-rpc.polkadot.io'],
     BULLETIN_RPCS: ['wss://paseo-bulletin-next-rpc.polkadot.io']
   },
@@ -121,7 +117,7 @@ export const KNOWN_NETWORKS = {
     SCHEMA_ID: [1n],
     COMPLIANCE_SCHEMA_ID: 2n,
     ASSETHUB_RPCS: ['wss://previewnet.substrate.dev/asset-hub'],
-    PEOPLE_GENESIS: '0x34999c298555e25bf17a7f3ea20efe7f6fdab1dfec7f808fbcfd36ca8aa5d220',
+    PEOPLE_GENESIS: '0xf720c28fe3315e67fa799a616fc59abad47dd257b1a336af6538435844d35218',
     PEOPLE_RPCS: ['wss://previewnet.substrate.dev/people'],
     BULLETIN_RPCS: ['wss://previewnet.substrate.dev/bulletin']
   },

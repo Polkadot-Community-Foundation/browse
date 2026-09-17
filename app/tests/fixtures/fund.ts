@@ -13,9 +13,11 @@ import { AttestationService } from '../../src/lib/attestation-service'
 import { ACTIVE_ATTESTATION_RESOLVER, NETWORK } from '../../src/lib/config'
 import { DEV_PHRASE as IDENTITY_PHRASE, identityPath } from '../utils'
 
-// Keep the funder above this PGAS balance. One claim mints far more, so a single
-// successful claim covers many tests. Claim across daily slots to top up.
-const FUNDER_PGAS_FLOOR = 20_000_000_000n
+// Keep the funder above this PGAS balance. It has to clear
+// IDENTITY_PGAS_AMOUNT with room to spare. A floor below what one run seeds
+// lets `ensureFunderPgas` call the funder healthy and the very next transfer
+// fail `BalanceLow`. Claim across the daily slots to top up.
+const FUNDER_PGAS_FLOOR = 150_000_000_000n
 const MAX_CLAIM_SLOTS = 20
 
 const RPC_ENDPOINTS = [...NETWORK.ASSETHUB_RPCS]
@@ -267,9 +269,14 @@ export async function mapAccount(tag: string): Promise<void> {
   })
 }
 
+// An account holding only PGAS pays the reclaim fee in PGAS, so sending the
+// whole balance leaves nothing to settle with and the transfer reverts with
+// `Assets.BalanceLow`. Hold this much back and the rest recycles.
+const PGAS_RECLAIM_FEE_BUFFER = 2_000_000_000n
+
 /**
- * Send the entire PGAS balance of `fromTag` to `to` so the pool recycles.
- * Defaults to the identity account.
+ * Send the PGAS balance of `fromTag` to `to`, less the fee buffer, so the pool
+ * recycles. Defaults to the identity account.
  */
 export async function transferAllWithPgas(
   fromTag: string,
@@ -280,12 +287,12 @@ export async function transferAllWithPgas(
     await withAssetHubApi(async (api) => {
       const assetId = (await api.constants.Pgas.PgasAssetId()) as number
       const balance = await pgasBalanceOf(api, assetId, from.address)
-      if (balance === 0n) return
+      if (balance <= PGAS_RECLAIM_FEE_BUFFER) return
       await new Promise<void>((resolve, reject) => {
         api.tx.Assets.transfer({
           id: assetId,
           target: { type: 'Id', value: to as SS58String },
-          amount: balance
+          amount: balance - PGAS_RECLAIM_FEE_BUFFER
         })
           .signSubmitAndWatch(from.signer)
           .subscribe({
@@ -461,13 +468,13 @@ export async function reclaimIdentity(): Promise<void> {
   await withAssetHubApi(async (api) => {
     const assetId = (await api.constants.Pgas.PgasAssetId()) as number
     const pgas = await pgasBalanceOf(api, assetId, identity.address)
-    if (pgas > 0n) {
+    if (pgas > PGAS_RECLAIM_FEE_BUFFER) {
       await watchTxWithRetry(
         () =>
           api.tx.Assets.transfer({
             id: assetId,
             target: { type: 'Id', value: master.address as SS58String },
-            amount: pgas
+            amount: pgas - PGAS_RECLAIM_FEE_BUFFER
           }),
         identity.signer,
         'identity PGAS reclaim'
