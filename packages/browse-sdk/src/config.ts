@@ -123,7 +123,8 @@ export const KNOWN_NETWORKS = {
   },
   [DEVNET_ASSETHUB_GENESIS]: {
     // PCF public products devnet: standard Paseo Asset Hub (para 1000).
-    // Addresses cross-checked against summit-net-deployments/DEVNET.md.
+    // The DotNS entries are the v0.8.0 set, from the canonical manifest
+    // `deployments/pcf-devnet/420420417.json` on the dotns fork.
     MULTICALL3: '0x92640655c5c7ee7E42F0B5aD68D205a8A767b81C',
     STORE_FACTORY: '0x5Df012daA06cA2602DA153309C2E3A83284Cb879',
     CONTENT_RESOLVER: '0x7e75491ecfb04900EB05ee63CABA2B33900aABB5',
