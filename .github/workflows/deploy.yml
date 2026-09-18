@@ -67,7 +67,7 @@ jobs:
             # TrUAPI wire the published mobile client speaks. A product built against a
             # different wire loads as skeletons with "innerDecoder is not a function".
             # Recorded in summit-deployer-skills guides/DEVNET_VERSION_MATRIX.md.
-            truapi: '0.9'
+            truapi: '0.13'
             tld: dot
             deployment-env: devnet
             reuse-artifact: false
