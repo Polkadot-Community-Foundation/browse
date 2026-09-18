@@ -64,6 +64,10 @@ jobs:
           - env: devnet
             display-name: Products Devnet (public Paseo AH 1000)
             genesis: '0xd6eec26135305a8ad257a20d003357284c8aa03d0bdb2b357ab0a22371e11ef2'
+            # TrUAPI wire the published mobile client speaks. A product built against a
+            # different wire loads as skeletons with "innerDecoder is not a function".
+            # Recorded in summit-deployer-skills guides/DEVNET_VERSION_MATRIX.md.
+            truapi: '0.9'
             tld: dot
             deployment-env: devnet
             reuse-artifact: false
@@ -178,6 +182,33 @@ jobs:
             exit 1
           fi
           echo "OK: bundle baked with devnet genesis $EXPECTED_GENESIS"
+
+      # A host<->product wire skew is invisible in the build and only shows up on a device
+      # (browse shipped broken this way on 2026-09-17). Fail here instead.
+      - name: Assert TrUAPI wire matches the client
+        if: matrix.target.reuse-artifact != true
+        env:
+          EXPECTED_TRUAPI: ${{ matrix.target.truapi }}
+        run: |
+          set -euo pipefail
+          RESOLVED=$(grep -oE '"@parity/truapi@[0-9][^"]*"' bun.lock \
+            | sed -E 's/.*@parity\/truapi@([^"]*)".*/\1/' | sort -u)
+          COUNT=$(printf '%s\n' "$RESOLVED" | grep -c . || true)
+          echo "resolved @parity/truapi: $(printf '%s ' $RESOLVED)"
+          if [ "$COUNT" -ne 1 ]; then
+            echo "::error::Expected exactly one @parity/truapi version, found $COUNT ($(printf '%s ' $RESOLVED))."
+            echo "::error::A second copy reaches the bundle even when app/ is pinned — check packages/* dev+peer deps."
+            exit 1
+          fi
+          case "$RESOLVED" in
+            "$EXPECTED_TRUAPI".*)
+              echo "OK: @parity/truapi $RESOLVED matches the client wire $EXPECTED_TRUAPI.x" ;;
+            *)
+              echo "::error::@parity/truapi $RESOLVED does not match the client wire ${EXPECTED_TRUAPI}.x"
+              echo "::error::Bumping product-sdk moves this transitively (product-sdk -> product-sdk-host -> truapi)."
+              echo "::error::See summit-deployer-skills guides/DEVNET_VERSION_MATRIX.md before changing it."
+              exit 1 ;;
+          esac
 
       - name: Compute build hash
         id: hash
