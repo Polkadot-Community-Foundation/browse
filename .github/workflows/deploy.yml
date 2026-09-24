@@ -9,6 +9,11 @@ on:
     paths: ['app/**']
   workflow_dispatch:
     inputs:
+      network:
+        description: "Network to deploy; all on push, pick one for a targeted redeploy"
+        type: choice
+        default: all
+        options: [all, devnet]
       skip-cache:
         description: 'Skip deployment cache and force redeploy'
         type: boolean
@@ -52,26 +57,48 @@ jobs:
     if: needs.check.outputs.cache-hit != 'true' || inputs.skip-cache
     uses: ./.github/workflows/build.yml
 
+  # Which network legs this run deploys: every target on push, the chosen one
+  # on a targeted redeploy (paritytech/autodeployer dispatches per network).
+  plan:
+    name: Pick networks
+    runs-on: ubuntu-latest
+    outputs:
+      targets: ${{ steps.plan.outputs.targets }}
+    steps:
+      - id: plan
+        env:
+          NETWORK: ${{ inputs.network || 'all' }}
+        run: |
+          targets=$(jq -c --arg n "$NETWORK" 'map(select($n == "all" or .env == $n))' <<'JSON'
+          [
+            {
+              "env": "devnet",
+              "display-name": "Products Devnet (public Paseo AH 1000)",
+              "genesis": "0xd6eec26135305a8ad257a20d003357284c8aa03d0bdb2b357ab0a22371e11ef2",
+              "truapi": "0.13",
+              "tld": "dot",
+              "deployment-env": "devnet",
+              "reuse-artifact": false,
+              "required": true
+            }
+          ]
+          JSON
+          )
+          echo "targets=$targets" >> "$GITHUB_OUTPUT"
+          echo "$targets" | jq -r '.[] | "deploying " + .env'
+
   deploy:
     name: Deploy ${{ matrix.target.display-name }}
-    needs: [check, build]
+    needs: [check, build, plan]
     if: needs.check.outputs.cache-hit != 'true' || inputs.skip-cache
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        target:
-          - env: devnet
-            display-name: Products Devnet (public Paseo AH 1000)
-            genesis: '0xd6eec26135305a8ad257a20d003357284c8aa03d0bdb2b357ab0a22371e11ef2'
-            # TrUAPI wire the published mobile client speaks. A product built against a
-            # different wire loads as skeletons with "innerDecoder is not a function".
-            # Recorded in summit-deployer-skills guides/DEVNET_VERSION_MATRIX.md.
-            truapi: '0.13'
-            tld: dot
-            deployment-env: devnet
-            reuse-artifact: false
-            required: true
+        # truapi = TrUAPI wire the published mobile client speaks. A product built
+        # against a different wire loads as skeletons with "innerDecoder is not a
+        # function". Recorded in summit-deployer-skills guides/DEVNET_VERSION_MATRIX.md.
+        target: ${{ fromJSON(needs.plan.outputs.targets) }}
     outputs:
       cid: ${{ steps.final.outputs.cid }}
       domain: ${{ steps.final.outputs.domain }}
@@ -191,24 +218,31 @@ jobs:
           EXPECTED_TRUAPI: ${{ matrix.target.truapi }}
         run: |
           set -euo pipefail
-          RESOLVED=$(grep -oE '"@parity/truapi@[0-9][^"]*"' bun.lock \
-            | sed -E 's/.*@parity\/truapi@([^"]*)".*/\1/' | sort -u)
-          COUNT=$(printf '%s\n' "$RESOLVED" | grep -c . || true)
-          echo "resolved @parity/truapi: $(printf '%s ' $RESOLVED)"
-          if [ "$COUNT" -ne 1 ]; then
-            echo "::error::Expected exactly one @parity/truapi version, found $COUNT ($(printf '%s ' $RESOLVED))."
-            echo "::error::A second copy reaches the bundle even when app/ is pinned — check packages/* dev+peer deps."
+          # Every package that depends on truapi, minus the e2e-only test host (it pins its
+          # own copy and never reaches the bundle). Each must resolve the client's wire.
+          CONSUMERS=$(grep -oE '^    "[^"]+": \["[^"]+", "", \{[^}]*"@parity/truapi"' bun.lock \
+            | cut -d'"' -f2 | grep -vxF '@parity/host-api-test-sdk' || true)
+          if [ -z "$CONSUMERS" ]; then
+            echo "::error::No bundled package depends on @parity/truapi; the lockfile layout changed."
             exit 1
           fi
-          case "$RESOLVED" in
-            "$EXPECTED_TRUAPI".*)
-              echo "OK: @parity/truapi $RESOLVED matches the client wire $EXPECTED_TRUAPI.x" ;;
-            *)
-              echo "::error::@parity/truapi $RESOLVED does not match the client wire ${EXPECTED_TRUAPI}.x"
-              echo "::error::Bumping product-sdk moves this transitively (product-sdk -> product-sdk-host -> truapi)."
-              echo "::error::See summit-deployer-skills guides/DEVNET_VERSION_MATRIX.md before changing it."
-              exit 1 ;;
-          esac
+          FAIL=0
+          for c in $CONSUMERS; do
+            LINE=$(grep -F "    \"$c/@parity/truapi\": " bun.lock || grep -F '    "@parity/truapi": ' bun.lock)
+            V=$(printf '%s' "$LINE" | sed -E 's/.*"@parity\/truapi@([^"]*)".*/\1/')
+            case "$V" in
+              "$EXPECTED_TRUAPI".*)
+                echo "OK: $c -> @parity/truapi $V matches the client wire $EXPECTED_TRUAPI.x" ;;
+              *)
+                echo "::error::$c -> @parity/truapi $V does not match the client wire ${EXPECTED_TRUAPI}.x"
+                FAIL=1 ;;
+            esac
+          done
+          if [ "$FAIL" -ne 0 ]; then
+            echo "::error::Bumping product-sdk moves this transitively (product-sdk -> product-sdk-host -> truapi)."
+            echo "::error::See summit-deployer-skills guides/DEVNET_VERSION_MATRIX.md before changing it."
+            exit 1
+          fi
 
       - name: Compute build hash
         id: hash
