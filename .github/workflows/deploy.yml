@@ -64,10 +64,10 @@ jobs:
           - env: devnet
             display-name: Products Devnet (public Paseo AH 1000)
             genesis: '0xd6eec26135305a8ad257a20d003357284c8aa03d0bdb2b357ab0a22371e11ef2'
-            # TrUAPI wire the published mobile client speaks. A product built against a
-            # different wire loads as skeletons with "innerDecoder is not a function".
-            # Recorded in summit-deployer-skills guides/DEVNET_VERSION_MATRIX.md.
-            truapi: '0.13'
+            # TrUAPI wire of the devnet hosts that run the TrUAPI core (mobile devnet
+            # builds, desktop v0.8.20+). A product built against a different wire fails
+            # its handshake or its calls on those hosts.
+            truapi: '0.23'
             tld: dot
             deployment-env: devnet
             reuse-artifact: false
