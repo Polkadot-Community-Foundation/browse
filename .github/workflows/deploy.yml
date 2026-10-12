@@ -345,7 +345,7 @@ jobs:
           else
             echo "### ${DOMAIN}.${TLD} (${TARGET_ENV})" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "Browser &nbsp; https://${DOMAIN}.dot.li" >> $GITHUB_STEP_SUMMARY
+            echo "Browser &nbsp; https://${DOMAIN}.dev-dot.li" >> $GITHUB_STEP_SUMMARY
             echo "Desktop &nbsp; \`${DOMAIN}.${TLD}\`" >> $GITHUB_STEP_SUMMARY
             echo "CID &nbsp; \`${CID}\`" >> $GITHUB_STEP_SUMMARY
           fi
