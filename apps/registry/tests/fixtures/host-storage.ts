@@ -13,10 +13,17 @@ import type { Page } from '@playwright/test'
 
 import { LOCALHOST_SELF_DOTNS } from '../../src/lib/config'
 
-/** What the test host exposes on its page, for the parts the specs drive. */
+/**
+ * What the test host exposes on its page, for the parts the specs drive.
+ *
+ * The host offers no call to seed product storage, so a seed goes through the
+ * storage callback the core itself writes through, under the key the core would
+ * use. The store holds bytes; the app only ever writes JSON text.
+ */
 export interface TestHostHandle {
-  seedProductStorage(key: string, value: string): void
-  getProductStorage(): Record<string, string>
+  callbacks: { productStorage: { write(key: string, value: Uint8Array): Promise<void> } }
+  getProductStorage(): Record<string, Uint8Array>
+  getProductStorageValue(key: string): string | undefined
 }
 
 declare global {
@@ -67,7 +74,9 @@ export async function persistProductStorage(page: Page): Promise<void> {
             string,
             string
           >
-          for (const [k, v] of Object.entries(saved)) value.seedProductStorage(k, v)
+          for (const [k, v] of Object.entries(saved)) {
+            void value.callbacks.productStorage.write(k, new TextEncoder().encode(v))
+          }
         } catch {
           // an unreadable mirror just means a cold start
         }
@@ -81,10 +90,13 @@ export async function persistProductStorage(page: Page): Promise<void> {
               string,
               string
             >
-            localStorage.setItem(
-              mirrorKey,
-              JSON.stringify({ ...saved, ...value.getProductStorage() })
+            const held = Object.fromEntries(
+              Object.entries(value.getProductStorage()).map(([k, v]) => [
+                k,
+                new TextDecoder().decode(v)
+              ])
             )
+            localStorage.setItem(mirrorKey, JSON.stringify({ ...saved, ...held }))
           } catch {
             // ignore
           }
@@ -108,7 +120,10 @@ export async function saveProductStorage(page: Page): Promise<void> {
     const host = window.__TEST_HOST__
     if (!host) throw new Error('no test host on this page')
     const saved = JSON.parse(localStorage.getItem(mirrorKey) ?? '{}') as Record<string, string>
-    localStorage.setItem(mirrorKey, JSON.stringify({ ...saved, ...host.getProductStorage() }))
+    const held = Object.fromEntries(
+      Object.entries(host.getProductStorage()).map(([k, v]) => [k, new TextDecoder().decode(v)])
+    )
+    localStorage.setItem(mirrorKey, JSON.stringify({ ...saved, ...held }))
   }, MIRROR_KEY)
 }
 
@@ -132,19 +147,25 @@ export async function resetProductStorage(page: Page): Promise<void> {
 /** Read one of the product's storage entries, parsed. */
 export async function readProductStorage<T>(page: Page, key: string): Promise<T | null> {
   return page.evaluate((k) => {
-    const raw = window.__TEST_HOST__?.getProductStorage()[k]
+    const raw = window.__TEST_HOST__?.getProductStorageValue(k)
     return raw ? (JSON.parse(raw) as unknown) : null
-  }, productStorageKey(key)) as Promise<T | null>
+  }, key) as Promise<T | null>
 }
 
 /** Write one of the product's storage entries, and the mirror a reload restores from. */
 export async function writeProductStorage(page: Page, key: string, value: unknown): Promise<void> {
   await page.evaluate(
-    ({ k, raw, mirrorKey }) => {
+    async ({ k, raw, mirrorKey }) => {
       const host = window.__TEST_HOST__
       if (!host) throw new Error('no test host on this page')
-      host.seedProductStorage(k, raw)
-      localStorage.setItem(mirrorKey, JSON.stringify(host.getProductStorage()))
+      await host.callbacks.productStorage.write(k, new TextEncoder().encode(raw))
+      const held = Object.fromEntries(
+        Object.entries(host.getProductStorage()).map(([key, v]) => [
+          key,
+          new TextDecoder().decode(v)
+        ])
+      )
+      localStorage.setItem(mirrorKey, JSON.stringify(held))
     },
     { k: productStorageKey(key), raw: JSON.stringify(value), mirrorKey: MIRROR_KEY }
   )

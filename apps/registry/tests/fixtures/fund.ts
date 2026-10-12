@@ -1,6 +1,14 @@
+import { indexBytes, junctionChainCode } from '@parity/browse-sdk'
 import { ss58ToEthereum } from '@polkadot-api/sdk-ink'
 import { sr25519CreateDerive } from '@polkadot-labs/hdkd'
-import { DEV_PHRASE, mnemonicToMiniSecret, ss58Encode } from '@polkadot-labs/hdkd-helpers'
+import {
+  DEV_PHRASE,
+  entropyToMiniSecret,
+  mnemonicToMiniSecret,
+  sr25519,
+  sr25519Derive,
+  ss58Encode
+} from '@polkadot-labs/hdkd-helpers'
 import { createClient, type PolkadotClient, type SS58String } from 'polkadot-api'
 import { getTxCreator } from 'polkadot-api/tx-creator'
 import { getWsProvider } from 'polkadot-api/ws'
@@ -12,7 +20,7 @@ import { claimPgas } from './claim-pgas'
 import { ensureLitePersonhood } from './lite-personhood'
 import { AttestationService } from '../../src/lib/attestation-service'
 import { ACTIVE_ATTESTATION_RESOLVER, NETWORK } from '../../src/lib/config'
-import { DEV_PHRASE as IDENTITY_PHRASE, identityPath } from '../utils'
+import { DEV_PHRASE as IDENTITY_PHRASE, identityEntropy } from '../utils'
 
 // Keep the funder above this PGAS balance. It has to clear
 // IDENTITY_PGAS_AMOUNT with room to spare. A floor below what one run seeds
@@ -43,15 +51,45 @@ const PGAS_TOPUP_THRESHOLD = 1_000_000_000n
 const fundersWithSpentClaims = new Set<string>()
 const NATIVE_TOPUP_THRESHOLD = 50_000_000_000n
 
-function signerFor(miniSecret: Uint8Array, path: string) {
-  const wallet = sr25519CreateDerive(miniSecret)(path)
+interface KeyPair {
+  publicKey: Uint8Array
+  sign(message: Uint8Array): Uint8Array
+}
+
+function credentialsOf(wallet: KeyPair) {
   return {
     signer: getTxCreator(wallet.publicKey, 'Sr25519', async (input: Uint8Array) =>
       wallet.sign(input)
     ),
     address: ss58Encode(wallet.publicKey, 42),
-    publicKey: wallet.publicKey
+    publicKey: wallet.publicKey,
+    /** A bare sr25519 signature over `message`, which a papi signer would wrap. */
+    signRaw: (message: Uint8Array) => wallet.sign(message)
   }
+}
+
+function signerFor(miniSecret: Uint8Array, path: string) {
+  return credentialsOf(sr25519CreateDerive(miniSecret)(path))
+}
+
+/**
+ * The identity account a TrUAPI signing host signs as for a session activated
+ * from `entropy`: `root//product//uid.<tld>/index_bytes(0)`, where root is the
+ * BIP-39 mini secret of the entropy with no password. This is the account the
+ * host signs legacy-account requests with, so it is the one that has to own the
+ * run username and bind the product account.
+ *
+ * The host keeps the key, and the fixtures need it to sign, so it is derived
+ * here the way truapi `derive_identity_keypair` does. `assertHostIdentity`
+ * checks the result against the identity the host reports before anything is
+ * funded or registered with it.
+ */
+export function identityKeyFor(entropy: Uint8Array): KeyPair {
+  return sr25519Derive(entropyToMiniSecret(entropy), sr25519, [
+    ['hard', junctionChainCode('product')],
+    ['hard', junctionChainCode(`uid.${NETWORK.TLD}`)],
+    ['soft', indexBytes(0)]
+  ])
 }
 
 type Credentials = ReturnType<typeof signerFor>
@@ -104,14 +142,14 @@ export function createDevSigner(name: string) {
 }
 
 /**
- * The per-run identity the app attests with and that tests follow. Derived off
- * `smalltava.08` at a run-unique path so a stuck one-per-identity lock left by a
- * dead account on one run never blocks another, and concurrent runs never
- * contend on the same identity. Funded and self-bound by {@link fundIdentity}.
+ * The per-run identity the app attests with and that tests follow: the
+ * identity account of the run's own entropy (see identityEntropy and
+ * {@link identityKeyFor}), so a stuck one-per-identity lock left by a dead
+ * account on one run never blocks another, and concurrent runs never contend on
+ * the same identity. Funded and self-bound by {@link fundIdentity}.
  */
 export function createProductSigner() {
-  // Under the substrate dev seed, the only root the test host derives from.
-  return signerFor(mnemonicToMiniSecret(DEV_PHRASE, ''), identityPath())
+  return credentialsOf(identityKeyFor(identityEntropy()))
 }
 
 /**
@@ -398,7 +436,7 @@ const IDENTITY_PGAS_AMOUNT = 18_000_000_000n
 /**
  * Prepare the per-run identity so it can bind and attest: fund native + PGAS
  * from the master and self-bind it on the active resolver. Runs once per run via
- * globalSetup. Idempotent, and a no-op locally where the identity is the master.
+ * globalSetup. Idempotent.
  */
 export async function fundIdentity(): Promise<void> {
   const master = createMasterSigner()
@@ -457,7 +495,7 @@ async function ensureIdentityBound(identity: Credentials): Promise<void> {
 /**
  * Sweep the per-run identity balances back to the master after a run so a fresh
  * identity does not strand native and PGAS. PGAS moves first because the native
- * transfer_all reaps the account. No-op locally where the identity is the master.
+ * transfer_all reaps the account.
  */
 export async function reclaimIdentity(): Promise<void> {
   const master = createMasterSigner()

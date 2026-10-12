@@ -22,12 +22,7 @@ import {
 } from './fixtures/fund'
 import { fundProductAccount } from './fixtures/product-account'
 import { createRevokedAttestation } from './fixtures/revoke-attestation'
-import {
-  getProductFrame,
-  navigateToTestHost,
-  startSignedHost,
-  startSignedHostWithProductAccounts
-} from './utils'
+import { getProductFrame, navigateToTestHost, startSignedHost } from './utils'
 
 /**
  * The count a card shows once a sync in flight has stopped moving it. Reading it
@@ -53,17 +48,11 @@ async function settledCount(counter: Locator): Promise<number> {
 
 test.describe('Recommend works', () => {
   let host: Awaited<ReturnType<typeof startSignedHost>>
-  // A second host signed in as the same identity but with a fresh, never-bound
-  // product account at index 0, so a recommendation drives the bind-and-attest
-  // batch instead of a plain attest.
-  let unboundHost: Awaited<ReturnType<typeof startSignedHostWithProductAccounts>>
-  let unbound: UnboundProduct
   let context: BrowserContext
   let page: Page
   let frame: Frame
 
   test.beforeAll(async ({ browser }) => {
-    // Two hosts to fund, each read from a browser the app has to start in.
     test.setTimeout(240_000)
     await fundWithNative(createProductSigner().address)
     await createRevokedAttestation('chess-clock').catch(() => {})
@@ -71,18 +60,11 @@ test.describe('Recommend works', () => {
     await createRevokedAttestation('alarm-clock').catch(() => {})
     await createRevokedAttestation('unit-converter').catch(() => {})
     await createRevokedAttestation('countdown-timer').catch(() => {})
+    await createRevokedAttestation('stopwatch').catch(() => {})
     host = await startSignedHost(IDENTITY_ACCOUNT)
-    unbound = await createUnboundProductAccount()
-    await createRevokedAttestation('calculator', createDevSigner(unbound.tag)).catch(() => {})
-    unboundHost = await startSignedHostWithProductAccounts(
-      IDENTITY_ACCOUNT,
-      unbound.productAccounts
-    )
-    // The host derives the account that pays for a recommendation, so ask each
-    // one what it handed the product and fund that.
-    await fundProductAccount(browser, host.url)
-    // One recommendation, through the bind-and-attest batch.
-    await fundProductAccount(browser, unboundHost.url, 5_000_000_000n)
+    // The host derives the account that pays for a recommendation from the run
+    // entropy, so it is fresh and unbound each run. Fund the one it derives.
+    await fundProductAccount(IDENTITY_ACCOUNT)
     context = await browser.newContext({ ignoreHTTPSErrors: true })
   })
 
@@ -91,21 +73,43 @@ test.describe('Recommend works', () => {
     await page?.close()
     await createRevokedAttestation('chess-clock').catch(() => {})
     await createRevokedAttestation('alarm-clock').catch(() => {})
-    // `calculator` is recommended by the fresh account, so revoke it as that attester.
-    if (unbound) {
-      await createRevokedAttestation('calculator', createDevSigner(unbound.tag)).catch(() => {})
-      await transferAllWithPgas(unbound.tag).catch(() => {})
-      await transferAllWithNative(unbound.tag).catch(() => {})
-    }
     await context?.close()
     await host?.close()
-    await unboundHost?.close()
   })
 
-  test('As a signed user, when I recommend an app, I see the count go up and a confirmation toast', async () => {
+  // A product account is derived from (session root, product id), so a second,
+  // never-bound one cannot be pinned to the same identity the way the old host
+  // allowed. The run's own product account is never-bound until its first write,
+  // so this test goes first and makes that write. It takes `stopwatch`, which no
+  // other recommend in this file touches: only the host holds the key that signs
+  // it, so no fixture can revoke it, and `calculator` has to stay free for the
+  // refusal spec below.
+  test('As a first-time user, when I recommend an app, I reveal my primary identity and recommend in a single signature', async () => {
     // The first recommendation of a run binds the identity and attests in one
     // batch, so it is the slowest write the suite makes, and the toast waits on
     // the network confirming it.
+    test.setTimeout(180_000)
+    page = await context.newPage()
+
+    // Given
+    await navigateToTestHost(page, host.url)
+    frame = await getProductFrame(page, '.search-bar__input')
+    await frame.locator('.search-bar__input').fill('stopwatch')
+    const card = frame.locator('.product-card[data-label="stopwatch"]')
+    await expect(card).toBeVisible({ timeout: 15_000 })
+    const upvote = card.locator('.product-card__upvote')
+
+    // When
+    await upvote.click()
+
+    // Then
+    await expect(upvote).toHaveClass(/product-card__upvote--active/, { timeout: 25_000 })
+    await expect(frame.locator('.toast--visible')).toContainText('Recommended!', {
+      timeout: 120_000
+    })
+  })
+
+  test('As a signed user, when I recommend an app, I see the count go up and a confirmation toast', async () => {
     test.setTimeout(180_000)
     page = await context.newPage()
 
@@ -236,47 +240,25 @@ test.describe('Recommend works', () => {
       timeout: 60_000
     })
   })
-
-  test('As a first-time user, when I recommend an app, I reveal my primary identity and recommend in a single signature', async () => {
-    test.setTimeout(40_000)
-    const unboundPage = await context.newPage()
-
-    // Given
-    // The unbound host maps the product account to a fresh, never-bound account,
-    // so the recommendation runs the bind-and-attest batch, not a plain attest.
-    await navigateToTestHost(unboundPage, unboundHost.url)
-    const unboundFrame = await getProductFrame(unboundPage, '.search-bar__input')
-    await unboundFrame.locator('.search-bar__input').fill('calculator')
-    const card = unboundFrame.locator('.product-card[data-label="calculator"]')
-    await expect(card).toBeVisible({ timeout: 15_000 })
-    const upvote = card.locator('.product-card__upvote')
-
-    // When
-    await upvote.click()
-
-    // Then
-    await expect(upvote).toHaveClass(/product-card__upvote--active/, { timeout: 25_000 })
-    await expect(unboundFrame.locator('.toast--visible')).toContainText('Recommended!', {
-      timeout: 60_000
-    })
-  })
 })
 
 test.describe('Recommendation fails', () => {
   // The account a recommendation fails through: a fresh, zero-balance keypair.
   let unfundedHost: Awaited<ReturnType<typeof startSignedHost>>
-  // The identity `//wallet` account, a second product account of the identity
-  // that already recommended `calculator` through the seeded account below.
+  // The run identity's own product account, a second product account of the
+  // identity that already recommended `calculator` through the seeded account below.
   let walletHost: Awaited<ReturnType<typeof startSignedHost>>
   let seed: UnboundProduct
   let context: BrowserContext
 
   test.beforeAll(async ({ browser }) => {
     test.setTimeout(120_000)
-    // Unique derivation per run gives a fresh keypair with a guaranteed zero
-    // balance on chain. A junction carries at most 31 bytes, so keep it short.
-    const uri = `//nofunds${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`
-    unfundedHost = await startSignedHost({ name: 'Unfunded', uri })
+    // Fresh entropy per run gives a session whose product account has a
+    // guaranteed zero balance on chain.
+    unfundedHost = await startSignedHost({
+      name: 'Unfunded',
+      entropy: crypto.getRandomValues(new Uint8Array(32))
+    })
 
     // Seed a standing recommendation: a fresh account binds the identity and
     // recommends `calculator`, so a second account of the same identity is refused.
@@ -356,7 +338,7 @@ test.describe('Recommend motion', () => {
     await fundWithNative(createProductSigner().address)
     const host = await startSignedHost(IDENTITY_ACCOUNT)
     // The host derives the account that pays for the recommendation.
-    await fundProductAccount(browser, host.url, 5_000_000_000n)
+    await fundProductAccount(IDENTITY_ACCOUNT, 5_000_000_000n)
     const context = await browser.newContext({
       ignoreHTTPSErrors: true,
       reducedMotion: 'no-preference'
