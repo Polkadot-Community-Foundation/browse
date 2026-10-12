@@ -98,6 +98,10 @@ test.describe('Following', () => {
   })
 
   test('As a signed user, when I reload the page, my following still shows up', async () => {
+    // A fresh page has no earlier result to show, so the Following tab waits on a
+    // full attestation scan, about 16s on previewnet, which runs past the
+    // describe's 15s budget on top of the page load.
+    test.setTimeout(40_000)
     const page = await context.newPage()
 
     // Given
@@ -111,7 +115,7 @@ test.describe('Following', () => {
 
     // Then
     await expect(frame.locator('.empty-state')).not.toBeVisible()
-    await expect(frame.locator(CARD).first()).toBeVisible({ timeout: 15_000 })
+    await expect(frame.locator(CARD).first()).toBeVisible({ timeout: 30_000 })
 
     await page.close()
   })
