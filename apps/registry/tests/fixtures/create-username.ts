@@ -108,9 +108,9 @@ function identifierKeyOf(publicKey: Uint8Array): Uint8Array {
 }
 
 /**
- * The per-run identity's own lite ring-VRF key, unique to its entropy. The
- * light-person key the host derives for the same session, so the person this
- * registers is the one the host would present.
+ * The lite ring-VRF key of the per-run identity, unique to its entropy. It is
+ * the light-person key the host derives for the same session, so the person
+ * this registers is the one the host would present.
  */
 function identityRingEntropy(): Uint8Array {
   return lightPersonRingVrfEntropy(identityEntropy(), NETWORK.TLD)

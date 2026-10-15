@@ -142,7 +142,7 @@ test.describe('Add a domain with the owner fixture', () => {
     // Given
     // The host activates a session from 32 bytes of entropy, so the owner
     // mnemonic has to be a 24-word one, and its username has to be owned by the
-    // identity account the host derives from it, not by the mnemonic's root.
+    // identity account the host derives from it, not by the mnemonic root.
     const host = await startSignedHost({
       name: process.env.E2E_OWNER_USERNAME!,
       entropy: mnemonicToEntropy(process.env.E2E_OWNER_MNEMONIC!)

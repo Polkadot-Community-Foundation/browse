@@ -18,7 +18,8 @@ import { LOCALHOST_SELF_DOTNS } from '../../src/lib/config'
  *
  * The host offers no call to seed product storage, so a seed goes through the
  * storage callback the core itself writes through, under the key the core would
- * use. The store holds bytes; the app only ever writes JSON text.
+ * use. The store holds bytes, and the app only ever writes JSON text. Tracked in
+ * paritytech/trinity-user-agents#1388.
  */
 export interface TestHostHandle {
   callbacks: { productStorage: { write(key: string, value: Uint8Array): Promise<void> } }
@@ -33,7 +34,7 @@ declare global {
 }
 
 /** The core's namespace: `truapi:product-storage:v1:<id length>:<product id>:<key>`. */
-export function productStorageKey(key: string): string {
+function productStorageKey(key: string): string {
   return `truapi:product-storage:v1:${LOCALHOST_SELF_DOTNS.length}:${LOCALHOST_SELF_DOTNS}:${key}`
 }
 

@@ -29,9 +29,8 @@ function runId(): string | undefined {
  * never contend on the same identity. playwright.config.ts gives local runs an
  * id too, so only a fixture script run by hand falls back to a shared one.
  *
- * A TrUAPI host activates a session from entropy, a root of its own, and
- * refuses a `//wallet//run<id>` derivation path under a seed. The two do not
- * convert, so the run id is hashed into the root instead.
+ * The host activates a session from entropy, not a derivation path, so the run
+ * id is hashed into the entropy.
  */
 export function identityEntropy(): Uint8Array {
   return blake2b(new TextEncoder().encode(`browse-e2e:identity:${runId() ?? 'local'}`), {
@@ -54,7 +53,7 @@ export function identityUsername(): string {
 }
 
 /** A built-in dev account by name, or an explicit one with its 32 bytes of entropy. */
-export type Account = string | DevAccount
+type Account = string | DevAccount
 
 // The test host reads each chain's role off the `id` suffix (`-asset-hub`,
 // `-people`), so the network name goes first.
@@ -115,7 +114,8 @@ export { APP_URL, PORT }
  * Start a test host signed in as the first of `accounts`, `alice` by default.
  *
  * The server takes no `networks`, so they are expanded here into the chain
- * proxies and runtime config they stand for. `networkSuffix` is the dotNS TLD
+ * proxies and runtime config they stand for. Tracked in
+ * paritytech/trinity-user-agents#1388. `networkSuffix` is the dotNS TLD
  * of the active network, which is what the identity account derives under (see
  * createProductSigner), so it is set here rather than left to the host default.
  */
@@ -135,14 +135,9 @@ export async function startSignedHost(...accounts: Account[]) {
 /**
  * A host for the specs written against a user with no connected account.
  *
- * host-api-test-sdk 0.13 always minted a session for its first roster entry, so
- * these specs were moved onto a signed host and their assertions hold for a
- * connected user too. The unsigned half of the sign-in detection in the app
- * goes untested. The TrUAPI test host can boot signed out
- * (`loginBehavior: 'manual'`), so that half could be covered again, but moving
- * these specs onto it is a change of what they test and is left out of the
- * host migration. The signed half is covered: the suite funds the account that
- * detection reports, and every recommend spec fails without it.
+ * It is signed in on purpose: these specs assert what holds for a connected
+ * user too, and the signed-out path of the sign-in detection in the app is not
+ * tested here. A host booted with `loginBehavior: 'manual'` would cover it.
  */
 export async function startUnsignedHost() {
   return startSignedHost('alice')

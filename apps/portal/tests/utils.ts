@@ -4,6 +4,7 @@ import {
   PREVIEWNET_ASSETHUB_GENESIS
 } from '@parity/browse-sdk'
 import type { DevAccount, NetworkConfig } from '@parity/truapi-host/testing/playwright'
+import type { TestHostServerOptions } from '@parity/truapi-host/testing/server'
 import type { Frame, Page } from '@playwright/test'
 
 // A portal-specific default keeps the suite off 5173, where another vite dev
@@ -65,8 +66,9 @@ function networks(): NetworkConfig[] {
 /**
  * Start a test host serving `chains`. The server takes no `networks`, so they
  * are expanded here into the chain proxies and runtime config they stand for.
+ * Tracked in paritytech/trinity-user-agents#1388.
  */
-async function startHost(chains: NetworkConfig[], options: Record<string, unknown>) {
+async function startHost(chains: NetworkConfig[], options: Partial<TestHostServerOptions>) {
   const { createTestHostServer } = await import('@parity/truapi-host/testing/server')
   const { fromNetworks } = await import('@parity/truapi-host/testing/playwright')
   const { mock, runtimeConfig } =

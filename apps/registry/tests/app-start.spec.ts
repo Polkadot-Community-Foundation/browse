@@ -67,7 +67,7 @@ test.describe('App Start', () => {
       await seedIconPreimage(frame.page(), 'calculator')
       // The test host answers a preimage lookup once and never pushes a value
       // seeded after it, so remount the cards to look the icon up again now that
-      // it is there, the way a real host would hold it from the start.
+      // it is there. Tracked in paritytech/trinity-user-agents#1388.
       await frame.locator('.category-tab', { hasText: 'Bookmarks' }).click()
       await frame.locator('.category-tab', { hasText: 'All' }).click()
       const calculatorIcon = frame.locator(

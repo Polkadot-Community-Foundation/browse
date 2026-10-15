@@ -22,7 +22,11 @@ import {
   PASEONEXTV2_ASSETHUB_GENESIS,
   PREVIEWNET_ASSETHUB_GENESIS
 } from '@parity/browse-sdk'
-import { DEV_ACCOUNT_NAMES, fromNetworks } from '@parity/truapi-host/testing/playwright'
+import {
+  DEV_ACCOUNT_NAMES,
+  type DevAccountName,
+  fromNetworks
+} from '@parity/truapi-host/testing/playwright'
 import { createTestHostServer } from '@parity/truapi-host/testing/server'
 
 function flag(name: string, fallback: string): string {
@@ -30,7 +34,7 @@ function flag(name: string, fallback: string): string {
   return at === -1 ? fallback : (process.argv[at + 1] ?? fallback)
 }
 
-function accountFlag(): string {
+function accountFlag(): DevAccountName {
   const value = flag('account', 'alice')
   const account = DEV_ACCOUNT_NAMES.find((name) => name === value)
   if (!account) {
@@ -49,8 +53,8 @@ const token = onPreviewnet
   : { tokenSymbol: 'PAS', tokenDecimals: 10 }
 
 // The server takes no `networks`, so expand them into the chain proxies and
-// runtime config they stand for. The host reads each chain's role off the id
-// suffix.
+// runtime config they stand for. Tracked in paritytech/trinity-user-agents#1388.
+// The host reads the role of each chain off the id suffix.
 const { mock, runtimeConfig } = fromNetworks([
   {
     id: `${network.TLD}-asset-hub`,

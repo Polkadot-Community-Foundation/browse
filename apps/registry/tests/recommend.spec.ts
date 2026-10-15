@@ -77,10 +77,10 @@ test.describe('Recommend works', () => {
     await host?.close()
   })
 
-  // A product account is derived from (session root, product id), so a second,
-  // never-bound one cannot be pinned to the same identity the way the old host
-  // allowed. The run's own product account is never-bound until its first write,
-  // so this test goes first and makes that write. It takes `stopwatch`, which no
+  // A product account is derived from the session root and product id, so a
+  // second never-bound one cannot be pinned to the same identity. The run's own
+  // product account is never-bound until its first write, so this test goes
+  // first and makes that write. It takes `stopwatch`, which no
   // other recommend in this file touches: only the host holds the key that signs
   // it, so no fixture can revoke it, and `calculator` has to stay free for the
   // refusal spec below.

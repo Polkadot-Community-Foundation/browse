@@ -84,7 +84,7 @@ function signerFor(miniSecret: Uint8Array, path: string) {
  * checks the result against the identity the host reports before anything is
  * funded or registered with it.
  */
-export function identityKeyFor(entropy: Uint8Array): KeyPair {
+function identityKeyFor(entropy: Uint8Array): KeyPair {
   return sr25519Derive(entropyToMiniSecret(entropy), sr25519, [
     ['hard', junctionChainCode('product')],
     ['hard', junctionChainCode(`uid.${NETWORK.TLD}`)],
@@ -143,8 +143,8 @@ export function createDevSigner(name: string) {
 
 /**
  * The per-run identity the app attests with and that tests follow: the
- * identity account of the run's own entropy (see identityEntropy and
- * {@link identityKeyFor}), so a stuck one-per-identity lock left by a dead
+ * identity account of the run entropy, from identityEntropy and
+ * {@link identityKeyFor}, so a stuck one-per-identity lock left by a dead
  * account on one run never blocks another, and concurrent runs never contend on
  * the same identity. Funded and self-bound by {@link fundIdentity}.
  */
@@ -442,7 +442,6 @@ export async function fundIdentity(): Promise<void> {
   const master = createMasterSigner()
   const identity = createProductSigner()
   await ensureFunderPgas(master)
-  if (identity.address === master.address) return
   await fundWithNative(identity.address)
   await fundWithPgas(identity.address, IDENTITY_PGAS_AMOUNT, master)
   await ensureIdentityBound(identity)
@@ -500,7 +499,6 @@ async function ensureIdentityBound(identity: Credentials): Promise<void> {
 export async function reclaimIdentity(): Promise<void> {
   const master = createMasterSigner()
   const identity = createProductSigner()
-  if (identity.address === master.address) return
   await withAssetHubApi(async (api) => {
     const assetId = (await api.constants.Pgas.PgasAssetId()) as number
     // Finality trails best by several blocks, so a finalized read still counts
