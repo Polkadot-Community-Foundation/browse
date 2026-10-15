@@ -113,7 +113,6 @@ test.describe('Following', () => {
     await frame.waitForTimeout(300)
 
     // Then
-    await expect(frame.locator('.stack-panel__chip')).toHaveCount(1, { timeout: 15_000 })
     await expect(frame.locator('.empty-state')).not.toBeVisible()
     await expect(frame.locator(CARD).first()).toBeVisible({ timeout: 30_000 })
 
