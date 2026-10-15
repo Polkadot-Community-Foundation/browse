@@ -17,9 +17,16 @@ const APP_URL = `http://localhost:${PORT}`
 export const DEV_PHRASE =
   'give social ivory used surprise dignity mother boss sword lunar giggle icon'
 
-/** Returns the run-unique id shared by the identity entropy and username, or undefined locally. */
+/**
+ * Returns the run-unique id shared by the identity entropy and username, or
+ * undefined locally. A re-run of a CI job keeps its run id, so a later attempt
+ * gets its own: the attestations an earlier attempt made from its product
+ * account cannot be revoked by the suite and would refuse every recommend.
+ */
 function runId(): string | undefined {
-  return process.env.GITHUB_RUN_ID ?? process.env.E2E_RUN_ID
+  const attempt = Number(process.env.GITHUB_RUN_ATTEMPT ?? 1)
+  const id = process.env.GITHUB_RUN_ID ?? process.env.E2E_RUN_ID
+  return id && attempt > 1 ? `${id}-${attempt}` : id
 }
 
 /**
