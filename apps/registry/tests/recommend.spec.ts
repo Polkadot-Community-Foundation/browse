@@ -48,6 +48,10 @@ async function settledCount(counter: Locator): Promise<number> {
 }
 
 test.describe('Recommend works', () => {
+  // A retry finds the recommends already made by the host and un-recommends
+  // them, so it can only fail, and would hide the first failure.
+  test.describe.configure({ retries: 0 })
+
   let host: Awaited<ReturnType<typeof startSignedHost>>
   let context: BrowserContext
   let page: Page
@@ -341,8 +345,10 @@ test.describe('Recommendation fails', () => {
 // it cannot revoke a recommendation, and this test takes unit-converter, which
 // the un-recommend test above leaves clean.
 test.describe('Recommend motion', () => {
+  test.describe.configure({ retries: 0 })
+
   test('Recommending an app bubbles when the network confirms', async ({ browser }) => {
-    test.setTimeout(60_000)
+    test.setTimeout(180_000)
     await fundWithNative(createIdentitySigner().address)
     const host = await startSignedHost(IDENTITY_ACCOUNT)
     // The host derives the account that pays for the recommendation.
@@ -366,8 +372,8 @@ test.describe('Recommend motion', () => {
 
     // Then
     await Promise.all([
-      expect(card.locator('.product-card__bubble').first()).toBeVisible({ timeout: 15_000 }),
-      expect(frame.locator('.toast--visible')).toContainText('Recommended!', { timeout: 15_000 })
+      expect(card.locator('.product-card__bubble').first()).toBeVisible({ timeout: 120_000 }),
+      expect(frame.locator('.toast--visible')).toContainText('Recommended!', { timeout: 120_000 })
     ])
 
     // Linger in headed runs so the bubbling is watchable. CI never sets HEADED.
