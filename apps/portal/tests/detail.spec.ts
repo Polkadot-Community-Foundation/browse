@@ -213,6 +213,8 @@ test.describe('Project detail for an empty label', () => {
 // Preimage submission needs an active session, so this runs signed. The host
 // keeps the upload in page and returns its key, so no Bulletin chain is needed.
 test('picking an icon resolves the preimage round trip and shows its CID', async ({ browser }) => {
+  // It boots its own host, which comes on top of the waits below.
+  test.setTimeout(90_000)
   // Given
   const host = await startSignedHost('alice')
   const context = await browser.newContext({ ignoreHTTPSErrors: true })
@@ -240,6 +242,8 @@ test('picking an icon resolves the preimage round trip and shows its CID', async
 })
 
 test('unpublish from settings takes two steps, errors, and signs nothing', async ({ browser }) => {
+  // It boots its own host, which comes on top of the waits below.
+  test.setTimeout(90_000)
   // Given
   const host = await startSignedHost('alice')
   const context = await browser.newContext({ ignoreHTTPSErrors: true })
@@ -276,6 +280,8 @@ test('unpublish from settings takes two steps, errors, and signs nothing', async
 })
 
 test('saving a name without authority errors and signs nothing', async ({ browser }) => {
+  // It boots its own host, which comes on top of the waits below.
+  test.setTimeout(90_000)
   // Given
   const host = await startSignedHost('alice')
   const context = await browser.newContext({ ignoreHTTPSErrors: true })
@@ -310,6 +316,8 @@ test('saving a name without authority errors and signs nothing', async ({ browse
 })
 
 test('a failed chain read surfaces an inline error in the hero', async ({ browser }) => {
+  // It boots its own host, which comes on top of the waits below.
+  test.setTimeout(90_000)
   // Given
   const host = await startBareHost()
   const context = await browser.newContext({ ignoreHTTPSErrors: true })

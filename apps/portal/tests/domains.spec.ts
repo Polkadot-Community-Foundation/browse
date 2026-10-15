@@ -123,6 +123,8 @@ test.describe('Add a domain', () => {
 })
 
 test('an unauthenticated host still adds a domain without signing', async ({ browser }) => {
+  // It boots its own host, which comes on top of the waits below.
+  test.setTimeout(90_000)
   // Given
   const host = await startUnsignedHost()
   const context = await browser.newContext({ ignoreHTTPSErrors: true })
@@ -166,6 +168,8 @@ test.describe('Add a domain with the owner fixture', () => {
   )
 
   test('adding an owned domain shows its card', async ({ browser }) => {
+    // It boots its own host, which comes on top of the waits below.
+    test.setTimeout(180_000)
     // Given
     // The host activates a session from 32 bytes of entropy, so the owner
     // mnemonic has to be a 24-word one, and its username has to be owned by the
