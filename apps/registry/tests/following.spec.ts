@@ -9,7 +9,7 @@ import { expect, test } from '@playwright/test'
 
 import { createAttestation } from './fixtures/attest'
 import { createCachedApps } from './fixtures/cache'
-import { createDevSigner, createIdentitySigner, fundWithPgas } from './fixtures/fund'
+import { createDevSigner, createIdentitySigner } from './fixtures/fund'
 import { FOLLOWING_KEY, readProductStorage, saveProductStorage } from './fixtures/host-storage'
 import { createRevokedAttestation } from './fixtures/revoke-attestation'
 import { seedPreimage } from './fixtures/seed-preimage'
@@ -33,9 +33,8 @@ test.describe('Following', () => {
   let recommendContext: BrowserContext
 
   test.beforeAll(async ({ browser }) => {
-    // A funding and three chain writes, which outlasted 70s in CI on 2026-09-29.
+    // Three chain writes, which outlasted 70s in CI on 2026-09-29.
     test.setTimeout(150_000)
-    await fundWithPgas(createDevSigner('Alice').address)
     await createRevokedAttestation('calculator').catch(() => {})
     await createRevokedAttestation('stopwatch').catch(() => {})
     await createAttestation('calculator')
@@ -114,6 +113,7 @@ test.describe('Following', () => {
     await frame.waitForTimeout(300)
 
     // Then
+    await expect(frame.locator('.stack-panel__chip')).toHaveCount(1, { timeout: 15_000 })
     await expect(frame.locator('.empty-state')).not.toBeVisible()
     await expect(frame.locator(CARD).first()).toBeVisible({ timeout: 30_000 })
 
