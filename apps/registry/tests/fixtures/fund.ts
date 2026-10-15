@@ -4,6 +4,7 @@ import { sr25519CreateDerive } from '@polkadot-labs/hdkd'
 import {
   DEV_PHRASE,
   entropyToMiniSecret,
+  type KeyPair,
   mnemonicToMiniSecret,
   sr25519,
   sr25519Derive,
@@ -20,7 +21,7 @@ import { claimPgas } from './claim-pgas'
 import { ensureLitePersonhood } from './lite-personhood'
 import { AttestationService } from '../../src/lib/attestation-service'
 import { ACTIVE_ATTESTATION_RESOLVER, NETWORK } from '../../src/lib/config'
-import { DEV_PHRASE as IDENTITY_PHRASE, identityEntropy } from '../utils'
+import { DEV_PHRASE as MASTER_PHRASE, identityEntropy } from '../utils'
 
 // Keep the funder above this PGAS balance. It has to clear
 // IDENTITY_PGAS_AMOUNT with room to spare. A floor below what one run seeds
@@ -50,11 +51,6 @@ const PGAS_TOPUP_THRESHOLD = 1_000_000_000n
 // its timeout. One sweep per process is enough, since slots only reset daily.
 const fundersWithSpentClaims = new Set<string>()
 const NATIVE_TOPUP_THRESHOLD = 50_000_000_000n
-
-interface KeyPair {
-  publicKey: Uint8Array
-  sign(message: Uint8Array): Uint8Array
-}
 
 function credentialsOf(wallet: KeyPair) {
   return {
@@ -144,9 +140,9 @@ export function createDevSigner(name: string) {
 /**
  * The per-run identity that tests follow and that the product accounts the app
  * attests with are bound to: the identity account of the run entropy, from
- * identityEntropy and {@link identityKeyFor}, so a stuck one-per-identity lock left by a dead
- * account on one run never blocks another, and concurrent runs never contend on
- * the same identity. Funded and self-bound by {@link fundIdentity}.
+ * identityEntropy and {@link identityKeyFor}, so a stuck one-per-identity lock
+ * left by a dead account on one run never blocks another, and concurrent runs
+ * never contend on the same identity. Funded and self-bound by {@link fundIdentity}.
  */
 export function createIdentitySigner() {
   return credentialsOf(identityKeyFor(identityEntropy()))
@@ -160,7 +156,7 @@ export function createIdentitySigner() {
  * stale-nonce retry absorbs.
  */
 export function createMasterSigner() {
-  return signerFor(mnemonicToMiniSecret(IDENTITY_PHRASE, ''), '//wallet')
+  return signerFor(mnemonicToMiniSecret(MASTER_PHRASE, ''), '//wallet')
 }
 
 /** Run `fn` with a throwaway Asset Hub client, destroying it afterward. */

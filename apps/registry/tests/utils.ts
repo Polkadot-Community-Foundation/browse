@@ -4,7 +4,11 @@ import {
   PASEONEXTV2_ASSETHUB_GENESIS,
   PREVIEWNET_ASSETHUB_GENESIS
 } from '@parity/browse-sdk'
-import type { DevAccount, NetworkConfig } from '@parity/truapi-host/testing/playwright'
+import type {
+  DevAccount,
+  DevAccountName,
+  NetworkConfig
+} from '@parity/truapi-host/testing/playwright'
 import type { TestHostServerOptions } from '@parity/truapi-host/testing/server'
 import type { Frame, Page } from '@playwright/test'
 
@@ -31,7 +35,9 @@ function runId(): string | undefined {
 }
 
 /**
- * The 32 bytes of BIP-39 entropy the per-run identity's session activates from.
+ * The 32 bytes of BIP-39 entropy that the session of the per-run identity
+ * activates from.
+ *
  * Each CI run gets a unique identity so a dead account leaving a stuck
  * one-per-identity lock on one run never blocks another, and concurrent runs
  * never contend on the same identity. playwright.config.ts gives local runs an
@@ -60,11 +66,8 @@ export function identityUsername(): string {
   return `run${base}.10`
 }
 
-/** A built-in dev account by name, or an explicit one with its 32 bytes of entropy. */
-type Account = string | DevAccount
-
-// The test host reads each chain's role off the `id` suffix (`-asset-hub`,
-// `-people`), so the network name goes first.
+// The test host reads the role of each chain off the id suffix, -asset-hub or
+// -people, so the network name goes first.
 const PASEONEXTV2_ASSETHUB: NetworkConfig = {
   id: 'paseo-next-v2-asset-hub',
   name: 'Paseo AssetHubNextV2',
@@ -131,11 +134,12 @@ true satisfies 'networks' extends keyof TestHostServerOptions ? never : true
  *
  * The server takes no `networks`, so they are expanded here into the chain
  * proxies and runtime config they stand for. Tracked in
- * paritytech/trinity-user-agents#1388. `networkSuffix` is the dotNS TLD
- * of the active network, which is what the identity account derives under (see
- * createIdentitySigner), so it is set here rather than left to the host default.
+ * paritytech/trinity-user-agents#1388. `networkSuffix` is the dotNS TLD of the
+ * active network, which the identity account derives under as
+ * createIdentitySigner does, so it is set here rather than left to the host
+ * default.
  */
-export async function startSignedHost(...accounts: Account[]) {
+export async function startSignedHost(...accounts: (DevAccountName | DevAccount)[]) {
   const { createTestHostServer } = await import('@parity/truapi-host/testing/server')
   const { fromNetworks } = await import('@parity/truapi-host/testing/playwright')
   const { mock, runtimeConfig } = fromNetworks([activeNetwork(), activePeopleChain()])

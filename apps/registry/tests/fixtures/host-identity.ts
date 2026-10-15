@@ -2,15 +2,15 @@
  * Confirm the identity the fixtures sign as is the one the host signs as.
  *
  * The host keeps the identity key, and the fixtures need it to fund, register
- * and bind the identity, so createIdentitySigner derives it from the run entropy
- * the way the core does. A derivation that drifts from the core's is not
- * refused anywhere: every address the suite funds and every username it
- * registers would belong to an account the host never signs with, and the
- * recommend specs would fail far from the cause. So before anything is spent,
- * boot a host on the run identity, read back the identity it reports, and stop
- * the run if the two differ.
+ * and bind the identity, so createIdentitySigner derives it from the run
+ * entropy the way the core does. A derivation that drifts from the one in the
+ * core is not refused anywhere: every address the suite funds and every
+ * username it registers would belong to an account the host never signs with,
+ * and the recommend specs would fail far from the cause. So before the run
+ * identity is funded, boot a host on it, read back the identity it reports, and
+ * stop the run if the two differ.
  */
-import { chromium } from '@playwright/test'
+import { type Browser, chromium } from '@playwright/test'
 import { bytesToHex } from 'viem'
 
 import { navigateToTestHost, startSignedHost } from '../utils'
@@ -20,8 +20,9 @@ import { createIdentitySigner } from './fund'
 /** The `identityAccountId` the host reports for its active session, as hex. */
 async function reportedIdentity(): Promise<string> {
   const host = await startSignedHost(IDENTITY_ACCOUNT)
-  const browser = await chromium.launch()
+  let browser: Browser | undefined
   try {
+    browser = await chromium.launch()
     const page = await browser.newPage({ ignoreHTTPSErrors: true })
     await navigateToTestHost(page, host.url)
     const reported = await page.waitForFunction(
@@ -43,7 +44,7 @@ async function reportedIdentity(): Promise<string> {
     )
     return ((await reported.jsonValue()) as string).toLowerCase()
   } finally {
-    await browser.close()
+    await browser?.close()
     await host.close()
   }
 }

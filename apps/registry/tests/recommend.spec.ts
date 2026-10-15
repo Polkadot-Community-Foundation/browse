@@ -59,6 +59,7 @@ test.describe('Recommend works', () => {
   let productAccount: string
 
   test.beforeAll(async ({ browser }) => {
+    // Funding the product account can first claim PGAS for the funder.
     test.setTimeout(240_000)
     await fundWithNative(createIdentitySigner().address)
     // following.spec.ts attests these as the identity, and the one-per-identity
@@ -249,16 +250,16 @@ test.describe('Recommend works', () => {
 test.describe('Recommendation fails', () => {
   // The account a recommendation fails through: a fresh, zero-balance keypair.
   let unfundedHost: Awaited<ReturnType<typeof startSignedHost>>
-  // The run identity's own product account, a second product account of the
+  // The product account of the run identity, a second product account of the
   // identity that already recommended `calculator` through the seeded account below.
-  let walletHost: Awaited<ReturnType<typeof startSignedHost>>
+  let identityHost: Awaited<ReturnType<typeof startSignedHost>>
   let seed: UnboundProduct
   let context: BrowserContext
 
   test.beforeAll(async ({ browser }) => {
     test.setTimeout(120_000)
     // Fresh entropy per run gives a session whose product account has a
-    // guaranteed zero balance on chain.
+    // guaranteed zero balance.
     unfundedHost = await startSignedHost({
       name: 'Unfunded',
       entropy: crypto.getRandomValues(new Uint8Array(32))
@@ -271,7 +272,7 @@ test.describe('Recommendation fails', () => {
     seed = await createUnboundProductAccount()
     await createRevokedAttestation('calculator', createDevSigner(seed.tag)).catch(() => {})
     await bindIdentityAndAttest(seed.tag, 'calculator')
-    walletHost = await startSignedHost(IDENTITY_ACCOUNT)
+    identityHost = await startSignedHost(IDENTITY_ACCOUNT)
 
     context = await browser.newContext({ ignoreHTTPSErrors: true })
   })
@@ -285,7 +286,7 @@ test.describe('Recommendation fails', () => {
     }
     await context?.close()
     await unfundedHost?.close()
-    await walletHost?.close()
+    await identityHost?.close()
   })
 
   test('As a signed user, when I recommend an app and it fails, I see an error badge with a message', async () => {
@@ -313,7 +314,7 @@ test.describe('Recommendation fails', () => {
     const page = await context.newPage()
 
     // Given
-    await navigateToTestHost(page, walletHost.url)
+    await navigateToTestHost(page, identityHost.url)
     const frame = await getProductFrame(page, '.search-bar__input')
     await frame.locator('.search-bar__input').fill('calculator')
     const card = frame.locator('.product-card[data-label="calculator"]')

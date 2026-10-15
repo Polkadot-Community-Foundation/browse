@@ -1,9 +1,9 @@
 /**
  * The account a host gives the product to sign contract writes with.
  *
- * TrUAPI derives it from (session root, product id), so it cannot be pinned to
- * a chosen account, and it is a different account for every session root. A
- * real host mints PGAS into it on a SmartContractAllowance grant; the test host
+ * TrUAPI derives it from the session root and the product id, so it cannot be
+ * pinned to a chosen account, and every session root gets a different one. A
+ * real host mints PGAS into it on a SmartContractAllowance grant. The test host
  * grants the allowance but mints nothing, so the suite pays instead.
  */
 import { productAccountAddress, type DevAccount } from '@parity/truapi-host/testing/playwright'
@@ -20,8 +20,8 @@ const DEFAULT_PRODUCT_PGAS = 12_000_000_000n
 
 /**
  * Fund the product account a host signed in as `account` hands the app, and
- * return its address. The address comes from the host's own derivation rather
- * than the suite's, so it is the account the app signs with. Idempotent: the
+ * return its address. The address comes from the derivation the host uses, so
+ * it is the account the app signs with. Idempotent: the
  * funders skip an account that is already above their threshold.
  */
 export async function fundProductAccount(

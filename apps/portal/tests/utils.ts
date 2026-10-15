@@ -3,7 +3,11 @@ import {
   PASEONEXTV2_ASSETHUB_GENESIS,
   PREVIEWNET_ASSETHUB_GENESIS
 } from '@parity/browse-sdk'
-import type { DevAccount, NetworkConfig } from '@parity/truapi-host/testing/playwright'
+import type {
+  DevAccount,
+  DevAccountName,
+  NetworkConfig
+} from '@parity/truapi-host/testing/playwright'
 import type { TestHostServerOptions } from '@parity/truapi-host/testing/server'
 import type { Frame, Page } from '@playwright/test'
 
@@ -13,9 +17,6 @@ const PORT = process.env.PORT ?? '5273'
 const APP_URL = `http://localhost:${PORT}`
 
 export { APP_URL, PORT }
-
-/** A built-in dev account by name, or an explicit one with its 32 bytes of entropy. */
-type Account = string | DevAccount
 
 const TOKENS: Record<string, { symbol: string; decimals: number }> = {
   [PASEONEXTV2_ASSETHUB_GENESIS]: { symbol: 'PAS', decimals: 10 },
@@ -34,7 +35,7 @@ export function activeGenesis(): keyof typeof KNOWN_NETWORKS {
  *
  * The identity flow reads `Resources.UsernameOwnerOf` on People, so both are
  * registered even though the smoke tests do not hit the chain. The host reads
- * each chain's role off the `id` suffix.
+ * the role of each chain off the `id` suffix.
  */
 function networks(): NetworkConfig[] {
   const genesis = activeGenesis()
@@ -91,14 +92,14 @@ export async function startBareHost() {
   return startHost([], { loginBehavior: 'manual' })
 }
 
-export async function startSignedHost(...accounts: Account[]) {
+export async function startSignedHost(...accounts: (DevAccountName | DevAccount)[]) {
   return startHost(networks(), { accounts: accounts.length > 0 ? accounts : ['alice'] })
 }
 
 /**
- * Open the host page and wait for its control surface. A signed host has its
- * session from boot, so getUserId resolves without a further step; a host that
- * should be signed out is started that way (see startUnsignedHost).
+ * Open the host page and wait for its control surface. A signed host has a
+ * session from boot, so getUserId resolves. startUnsignedHost starts one
+ * without a session.
  */
 export async function navigateToTestHost(page: Page, hostUrl: string): Promise<void> {
   await page.goto(hostUrl, { waitUntil: 'commit' })
@@ -130,7 +131,7 @@ export async function seedSnapshotPreimage(page: Page): Promise<string> {
   for (const bytes of blocks) {
     await page.evaluate((data) => {
       const host = (
-        window as unknown as { __TEST_HOST__: { seedPreimage(value: Uint8Array): string } }
+        window as unknown as { __TEST_HOST__: { seedPreimage(value: Uint8Array): Uint8Array } }
       ).__TEST_HOST__
       host.seedPreimage(new Uint8Array(data))
     }, Array.from(bytes))
