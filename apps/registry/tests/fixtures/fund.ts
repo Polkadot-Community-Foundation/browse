@@ -491,6 +491,27 @@ async function ensureIdentityBound(identity: Credentials): Promise<void> {
   }
 }
 
+/** The identity `address` is bound to, or zero when it has never been bound. */
+export async function boundIdentityOf(address: string): Promise<bigint> {
+  const h160 = ss58ToEthereum(address as SS58String).toLowerCase() as `0x${string}`
+  const master = createMasterSigner()
+  const client = createClient(
+    getWsProvider(RPC_ENDPOINTS, {
+      websocketClass: WebSocket as unknown as typeof globalThis.WebSocket
+    })
+  )
+  try {
+    const service = new AttestationService(
+      async () => client,
+      async () => ({ signer: master.signer, origin: master.address, publicKey: master.publicKey }),
+      false
+    )
+    return BigInt(await service.boundIdentity(h160))
+  } finally {
+    client.destroy()
+  }
+}
+
 /**
  * Sweep the per-run identity balances back to the master after a run so a fresh
  * identity does not strand native and PGAS. PGAS moves first because the native

@@ -14,6 +14,7 @@ import {
   type UnboundProduct
 } from './fixtures/bind-identity'
 import {
+  boundIdentityOf,
   createDevSigner,
   createProductSigner,
   fundWithNative,
@@ -51,6 +52,7 @@ test.describe('Recommend works', () => {
   let context: BrowserContext
   let page: Page
   let frame: Frame
+  let productAccount: string
 
   test.beforeAll(async ({ browser }) => {
     test.setTimeout(240_000)
@@ -64,7 +66,7 @@ test.describe('Recommend works', () => {
     host = await startSignedHost(IDENTITY_ACCOUNT)
     // The host derives the account that pays for a recommendation from the run
     // entropy, so it is fresh and unbound each run. Fund the one it derives.
-    await fundProductAccount(IDENTITY_ACCOUNT)
+    productAccount = await fundProductAccount(IDENTITY_ACCOUNT)
     context = await browser.newContext({ ignoreHTTPSErrors: true })
   })
 
@@ -92,6 +94,10 @@ test.describe('Recommend works', () => {
     page = await context.newPage()
 
     // Given
+    expect(
+      await boundIdentityOf(productAccount),
+      'the product account must be unbound for the recommend to bind it'
+    ).toBe(0n)
     await navigateToTestHost(page, host.url)
     frame = await getProductFrame(page, '.search-bar__input')
     await frame.locator('.search-bar__input').fill('stopwatch')
@@ -107,6 +113,8 @@ test.describe('Recommend works', () => {
     await expect(frame.locator('.toast--visible')).toContainText('Recommended!', {
       timeout: 120_000
     })
+    const identity = await boundIdentityOf(createIdentitySigner().address)
+    await expect.poll(() => boundIdentityOf(productAccount), { timeout: 30_000 }).toBe(identity)
   })
 
   test('As a signed user, when I recommend an app, I see the count go up and a confirmation toast', async () => {
