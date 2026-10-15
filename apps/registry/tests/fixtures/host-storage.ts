@@ -7,7 +7,8 @@
  * host persists it. The caching and reload specs are written against a host
  * that persists, so the helpers here mirror the map into the host page's
  * `localStorage` and restore it into each fresh runtime before the product's
- * first read.
+ * first read. The mirror stays needed after paritytech/trinity-user-agents#1388
+ * is closed: that adds seeding, and a reload still clears the map.
  */
 import type { Page } from '@playwright/test'
 
@@ -33,7 +34,11 @@ declare global {
   }
 }
 
-/** The core's namespace: `truapi:product-storage:v1:<id length>:<product id>:<key>`. */
+/**
+ * The core namespace, `truapi:product-storage:v1:<id length>:<product id>:<key>`,
+ * built by hand until the host seeds by the product key. Tracked in
+ * paritytech/trinity-user-agents#1388.
+ */
 function productStorageKey(key: string): string {
   return `truapi:product-storage:v1:${LOCALHOST_SELF_DOTNS.length}:${LOCALHOST_SELF_DOTNS}:${key}`
 }

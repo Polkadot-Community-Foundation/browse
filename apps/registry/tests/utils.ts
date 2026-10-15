@@ -5,6 +5,7 @@ import {
   PREVIEWNET_ASSETHUB_GENESIS
 } from '@parity/browse-sdk'
 import type { DevAccount, NetworkConfig } from '@parity/truapi-host/testing/playwright'
+import type { TestHostServerOptions } from '@parity/truapi-host/testing/server'
 import type { Frame, Page } from '@playwright/test'
 
 import { LOCALHOST_SELF_DOTNS, NETWORK } from '../src/lib/config'
@@ -116,6 +117,14 @@ function activePeopleChain(): NetworkConfig {
 }
 
 export { APP_URL, PORT }
+
+// Stops compiling once the test host server takes `networks`, the release that
+// closes paritytech/trinity-user-agents#1388. Then drop every workaround for it:
+// - fromNetworks in startSignedHost here, startHost in apps/portal/tests/utils.ts
+//   and scripts/mock-host.ts
+// - the remount after seedIconPreimage in app-start.spec.ts
+// - the seeding in fixtures/host-storage.ts
+true satisfies 'networks' extends keyof TestHostServerOptions ? never : true
 
 /**
  * Start a test host signed in as the first of `accounts`, `alice` by default.
