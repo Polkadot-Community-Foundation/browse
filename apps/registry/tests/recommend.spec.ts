@@ -16,7 +16,7 @@ import {
 import {
   boundIdentityOf,
   createDevSigner,
-  createProductSigner,
+  createIdentitySigner,
   fundWithNative,
   transferAllWithNative,
   transferAllWithPgas
@@ -56,12 +56,10 @@ test.describe('Recommend works', () => {
 
   test.beforeAll(async ({ browser }) => {
     test.setTimeout(240_000)
-    await fundWithNative(createProductSigner().address)
-    await createRevokedAttestation('chess-clock').catch(() => {})
+    await fundWithNative(createIdentitySigner().address)
+    // following.spec.ts attests these as the identity, and the one-per-identity
+    // lock would refuse the recommends below.
     await createRevokedAttestation('calculator').catch(() => {})
-    await createRevokedAttestation('alarm-clock').catch(() => {})
-    await createRevokedAttestation('unit-converter').catch(() => {})
-    await createRevokedAttestation('countdown-timer').catch(() => {})
     await createRevokedAttestation('stopwatch').catch(() => {})
     host = await startSignedHost(IDENTITY_ACCOUNT)
     // The host derives the account that pays for a recommendation from the run
@@ -73,19 +71,13 @@ test.describe('Recommend works', () => {
   test.afterAll(async () => {
     test.setTimeout(120_000)
     await page?.close()
-    await createRevokedAttestation('chess-clock').catch(() => {})
-    await createRevokedAttestation('alarm-clock').catch(() => {})
     await context?.close()
     await host?.close()
   })
 
-  // A product account is derived from the session root and product id, so a
-  // second never-bound one cannot be pinned to the same identity. The run's own
-  // product account is never-bound until its first write, so this test goes
-  // first and makes that write. It takes `stopwatch`, which no
-  // other recommend in this file touches: only the host holds the key that signs
-  // it, so no fixture can revoke it, and `calculator` has to stay free for the
-  // refusal spec below.
+  // The product account of the run is unbound until its first write, so this
+  // test goes first and makes it. It takes `stopwatch`, which no other recommend
+  // in this file touches, and `calculator` stays free for the refusal spec below.
   test('As a first-time user, when I recommend an app, I reveal my primary identity and recommend in a single signature', async () => {
     // The first recommendation of a run binds the identity and attests in one
     // batch, so it is the slowest write the suite makes, and the toast waits on
@@ -270,7 +262,7 @@ test.describe('Recommendation fails', () => {
 
     // Seed a standing recommendation: a fresh account binds the identity and
     // recommends `calculator`, so a second account of the same identity is refused.
-    await fundWithNative(createProductSigner().address)
+    await fundWithNative(createIdentitySigner().address)
     await createRevokedAttestation('calculator').catch(() => {})
     seed = await createUnboundProductAccount()
     await createRevokedAttestation('calculator', createDevSigner(seed.tag)).catch(() => {})
@@ -345,13 +337,13 @@ test.describe('Recommendation fails', () => {
 })
 
 // Every test that recommends as the run identity lives in this file, so one
-// worker runs them in order. Only the host holds the key that signs a
-// recommendation, so no fixture can revoke one, and this test takes
-// unit-converter, which the un-recommend test above leaves clean.
+// worker runs them in order. The suite never signs as the product account, so
+// it cannot revoke a recommendation, and this test takes unit-converter, which
+// the un-recommend test above leaves clean.
 test.describe('Recommend motion', () => {
   test('Recommending an app bubbles when the network confirms', async ({ browser }) => {
     test.setTimeout(60_000)
-    await fundWithNative(createProductSigner().address)
+    await fundWithNative(createIdentitySigner().address)
     const host = await startSignedHost(IDENTITY_ACCOUNT)
     // The host derives the account that pays for the recommendation.
     await fundProductAccount(IDENTITY_ACCOUNT, 5_000_000_000n)

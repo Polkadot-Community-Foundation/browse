@@ -142,13 +142,13 @@ export function createDevSigner(name: string) {
 }
 
 /**
- * The per-run identity the app attests with and that tests follow: the
- * identity account of the run entropy, from identityEntropy and
- * {@link identityKeyFor}, so a stuck one-per-identity lock left by a dead
+ * The per-run identity that tests follow and that the product accounts the app
+ * attests with are bound to: the identity account of the run entropy, from
+ * identityEntropy and {@link identityKeyFor}, so a stuck one-per-identity lock left by a dead
  * account on one run never blocks another, and concurrent runs never contend on
  * the same identity. Funded and self-bound by {@link fundIdentity}.
  */
-export function createProductSigner() {
+export function createIdentitySigner() {
   return credentialsOf(identityKeyFor(identityEntropy()))
 }
 
@@ -228,16 +228,10 @@ export interface FundResult {
 }
 
 /**
- * Ensure dev account `toAccount` holds enough PGAS to pay for contract calls.
- * Idempotent: skips the transfer when already above `PGAS_TOPUP_THRESHOLD`. `from`
- * defaults to the identity account ({@link createProductSigner}), the single
- * funder that holds both PGAS and native on the dev networks.
- */
-/**
  * Ensure the funder holds PGAS, self-claiming from the personhood faucet when it
- * has run dry. The funder is also the product account that signs attestations,
- * so it must stay funded for both transfers and its own contract calls. A
- * claim needs the funder in a lite ring, which it registers itself for.
+ * has run dry. The funder pays for the transfers it makes and for its own
+ * contract calls, so it must stay funded for both. A claim needs the funder in a
+ * lite ring, which it registers itself for.
  */
 export async function ensureFunderPgas(from: Credentials = createMasterSigner()): Promise<void> {
   if (fundersWithSpentClaims.has(from.address)) return
@@ -440,7 +434,7 @@ const IDENTITY_PGAS_AMOUNT = 18_000_000_000n
  */
 export async function fundIdentity(): Promise<void> {
   const master = createMasterSigner()
-  const identity = createProductSigner()
+  const identity = createIdentitySigner()
   await ensureFunderPgas(master)
   await fundWithNative(identity.address)
   await fundWithPgas(identity.address, IDENTITY_PGAS_AMOUNT, master)
@@ -519,7 +513,7 @@ export async function boundIdentityOf(address: string): Promise<bigint> {
  */
 export async function reclaimIdentity(): Promise<void> {
   const master = createMasterSigner()
-  const identity = createProductSigner()
+  const identity = createIdentitySigner()
   await withAssetHubApi(async (api) => {
     const assetId = (await api.constants.Pgas.PgasAssetId()) as number
     // Finality trails best by several blocks, so a finalized read still counts

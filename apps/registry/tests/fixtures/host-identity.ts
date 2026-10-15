@@ -2,7 +2,7 @@
  * Confirm the identity the fixtures sign as is the one the host signs as.
  *
  * The host keeps the identity key, and the fixtures need it to fund, register
- * and bind the identity, so createProductSigner derives it from the run entropy
+ * and bind the identity, so createIdentitySigner derives it from the run entropy
  * the way the core does. A derivation that drifts from the core's is not
  * refused anywhere: every address the suite funds and every username it
  * registers would belong to an account the host never signs with, and the
@@ -15,7 +15,7 @@ import { bytesToHex } from 'viem'
 
 import { navigateToTestHost, startSignedHost } from '../utils'
 import { IDENTITY_ACCOUNT } from './bind-identity'
-import { createProductSigner } from './fund'
+import { createIdentitySigner } from './fund'
 
 /** The `identityAccountId` the host reports for its active session, as hex. */
 async function reportedIdentity(): Promise<string> {
@@ -48,9 +48,9 @@ async function reportedIdentity(): Promise<string> {
   }
 }
 
-/** Throw unless the host signs as the identity createProductSigner derives. */
+/** Throw unless the host signs as the identity createIdentitySigner derives. */
 export async function assertHostIdentity(): Promise<void> {
-  const derived = bytesToHex(createProductSigner().publicKey).toLowerCase()
+  const derived = bytesToHex(createIdentitySigner().publicKey).toLowerCase()
   const reported = await reportedIdentity()
   if (reported !== derived) {
     throw new Error(

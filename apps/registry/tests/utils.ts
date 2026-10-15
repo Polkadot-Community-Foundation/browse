@@ -124,7 +124,7 @@ export { APP_URL, PORT }
  * proxies and runtime config they stand for. Tracked in
  * paritytech/trinity-user-agents#1388. `networkSuffix` is the dotNS TLD
  * of the active network, which is what the identity account derives under (see
- * createProductSigner), so it is set here rather than left to the host default.
+ * createIdentitySigner), so it is set here rather than left to the host default.
  */
 export async function startSignedHost(...accounts: Account[]) {
   const { createTestHostServer } = await import('@parity/truapi-host/testing/server')

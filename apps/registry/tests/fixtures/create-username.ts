@@ -18,7 +18,7 @@ import { bytesToHex } from 'viem'
 import { lightPersonRingVrfEntropy } from '@parity/browse-sdk'
 import { NETWORK } from '../../src/lib/config'
 import { identityEntropy, identityUsername } from '../utils'
-import { createMasterSigner, createProductSigner } from './fund'
+import { createMasterSigner, createIdentitySigner } from './fund'
 
 // The app resolves usernames from this People chain.
 const PEOPLE_RPC = NETWORK.PEOPLE_RPCS![0]
@@ -121,7 +121,7 @@ function identityRingEntropy(): Uint8Array {
  * a lite person with the username in the same extrinsic when it has none yet.
  */
 export async function createUsername(): Promise<void> {
-  const identity = createProductSigner()
+  const identity = createIdentitySigner()
   const username = identityUsername()
   const [base] = username.split('.')
   await withPeopleApi(async (api) => {

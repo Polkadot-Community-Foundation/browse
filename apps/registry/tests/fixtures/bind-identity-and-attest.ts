@@ -6,7 +6,7 @@ import { nameWithTld } from '@parity/browse-sdk'
 
 import { encodeAttestationLabel, namehash, nodeToSubject } from '../../src/lib/abi'
 import { ACTIVE_ATTESTATION_RESOLVER, ACTIVE_SCHEMA_ID, NETWORK } from '../../src/lib/config'
-import { createDevSigner, createProductSigner } from './fund'
+import { createDevSigner, createIdentitySigner } from './fund'
 import { withSigner } from './with-attestation-service'
 
 const MESSAGE_PREFIX = 'attestation v1\n'
@@ -36,7 +36,7 @@ export async function bindIdentityAndAttest(tag: string, label: string): Promise
   const h160 = (ss58ToEthereum(account.address as SS58String) as `0x${string}`).toLowerCase()
   const message = buildBindingMessage(ACTIVE_ATTESTATION_RESOLVER, h160 as `0x${string}`)
 
-  const identity = createProductSigner()
+  const identity = createIdentitySigner()
   const signature = await identity.signer.signBytes(message)
 
   await withSigner(account, async (service) => {
