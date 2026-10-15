@@ -304,7 +304,7 @@ test.describe('Recommendation fails', () => {
     })
   })
 
-  test('As a user with a second product account, when I recommend an app my identity already recommended, it is refused and I see an error', async () => {
+  test('As a user with a second product account, when I un-recommend an app another account of my identity recommended, it is refused and nothing is signed', async () => {
     test.setTimeout(40_000)
     const page = await context.newPage()
 
@@ -325,6 +325,14 @@ test.describe('Recommendation fails', () => {
       timeout: 25_000
     })
     await expect(upvote).toHaveClass(/product-card__upvote--active/)
+    expect(
+      await page.evaluate(
+        () =>
+          (
+            window as unknown as { __TEST_HOST__: { getSigningLog(): unknown[] } }
+          ).__TEST_HOST__.getSigningLog().length
+      )
+    ).toBe(0)
   })
 })
 
