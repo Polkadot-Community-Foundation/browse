@@ -241,7 +241,12 @@ test('picking an icon resolves the preimage round trip and shows its CID', async
   await host.close()
 })
 
-test('unpublish from settings takes two steps, errors, and signs nothing', async ({ browser }) => {
+// No account owns the username the host reports for `alice`, so both writes
+// below stop at resolving the identity, before any authority check, and nothing
+// is signed.
+test('unpublish from settings takes two steps, errors without an owned username, and signs nothing', async ({
+  browser
+}) => {
   // It boots its own host, which comes on top of the waits below.
   test.setTimeout(90_000)
   // Given
@@ -264,9 +269,10 @@ test('unpublish from settings takes two steps, errors, and signs nothing', async
   await frame.getByRole('button', { name: 'Confirm unpublish' }).click()
 
   // Then
-  await expect(frame.locator('.settings-danger .feedback-error')).toBeVisible({
-    timeout: 25_000
-  })
+  await expect(frame.locator('.settings-danger .feedback-error')).toContainText(
+    'No account owns DotNS username',
+    { timeout: 25_000 }
+  )
   const signed = await page.evaluate(
     () =>
       (
@@ -279,7 +285,7 @@ test('unpublish from settings takes two steps, errors, and signs nothing', async
   await host.close()
 })
 
-test('saving a name without authority errors and signs nothing', async ({ browser }) => {
+test('saving a name without an owned username errors and signs nothing', async ({ browser }) => {
   // It boots its own host, which comes on top of the waits below.
   test.setTimeout(90_000)
   // Given
@@ -302,7 +308,10 @@ test('saving a name without authority errors and signs nothing', async ({ browse
     .click()
 
   // Then
-  await expect(frame.locator('.settings-card .feedback-error')).toBeVisible({ timeout: 25_000 })
+  await expect(frame.locator('.settings-card .feedback-error')).toContainText(
+    'No account owns DotNS username',
+    { timeout: 25_000 }
+  )
   const signed = await page.evaluate(
     () =>
       (
