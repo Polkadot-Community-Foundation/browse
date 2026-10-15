@@ -281,8 +281,12 @@ test.describe('Recommendation fails', () => {
     test.setTimeout(120_000)
     if (seed) {
       await createRevokedAttestation('calculator', createDevSigner(seed.tag)).catch(() => {})
-      await transferAllWithPgas(seed.tag).catch(() => {})
-      await transferAllWithNative(seed.tag).catch(() => {})
+      await transferAllWithPgas(seed.tag).catch((error) =>
+        console.warn(`reclaiming PGAS from seed ${seed.tag} failed: ${String(error)}`)
+      )
+      await transferAllWithNative(seed.tag).catch((error) =>
+        console.warn(`reclaiming native from seed ${seed.tag} failed: ${String(error)}`)
+      )
     }
     await context?.close()
     await unfundedHost?.close()
