@@ -498,7 +498,11 @@ export async function boundIdentityOf(address: string): Promise<bigint> {
     )
     return BigInt(await service.boundIdentity(h160))
   } finally {
-    client.destroy()
+    try {
+      client.destroy()
+    } catch {
+      // ignore teardown errors
+    }
   }
 }
 
