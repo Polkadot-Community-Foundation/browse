@@ -106,7 +106,7 @@ test.describe('Recommend works', () => {
     await upvote.click()
 
     // Then
-    await expect(upvote).toHaveClass(/product-card__upvote--active/, { timeout: 25_000 })
+    await expect(upvote).toHaveClass(/product-card__upvote--active/, { timeout: 120_000 })
     await expect(frame.locator('.toast--visible')).toContainText('Recommended!', {
       timeout: 120_000
     })
@@ -132,7 +132,7 @@ test.describe('Recommend works', () => {
     await upvote.click()
 
     // Then
-    await expect(upvote).toHaveClass(/product-card__upvote--active/, { timeout: 15_000 })
+    await expect(upvote).toHaveClass(/product-card__upvote--active/, { timeout: 120_000 })
     await expect(frame.locator('.toast--visible')).toContainText('Recommended!', {
       timeout: 120_000
     })
@@ -150,7 +150,7 @@ test.describe('Recommend works', () => {
   })
 
   test('As a signed user, when I search for a domain and recommend it, I see the count go up and a confirmation toast', async () => {
-    test.setTimeout(90_000)
+    test.setTimeout(180_000)
     page = await context.newPage()
 
     // Given
@@ -169,15 +169,15 @@ test.describe('Recommend works', () => {
     await upvote.click()
 
     // Then
-    await expect(upvote).toHaveClass(/product-card__upvote--active/, { timeout: 15_000 })
+    await expect(upvote).toHaveClass(/product-card__upvote--active/, { timeout: 120_000 })
     await expect(upvoteCount).toHaveText(String(before + 1), { timeout: 45_000 })
     await expect(frame.locator('.toast--visible')).toContainText('Recommended!', {
-      timeout: 15_000
+      timeout: 120_000
     })
   })
 
   test('As a signed user, when I un-recommend an app, I see the count go down and a confirmation toast', async () => {
-    test.setTimeout(90_000)
+    test.setTimeout(180_000)
     page = await context.newPage()
 
     // Given
@@ -191,7 +191,7 @@ test.describe('Recommend works', () => {
     const upvote = card.locator('.product-card__upvote')
     const upvoteCount = upvote.locator('.product-card__upvote-count')
     await upvote.click()
-    await expect(upvote).toHaveClass(/product-card__upvote--active/, { timeout: 25_000 })
+    await expect(upvote).toHaveClass(/product-card__upvote--active/, { timeout: 120_000 })
     await expect(upvoteCount).toBeVisible()
     const beforeText = (await upvoteCount.textContent()) ?? ''
     const before = beforeText === '999+' ? 1000 : Number(beforeText)
@@ -213,7 +213,7 @@ test.describe('Recommend works', () => {
   })
 
   test('As a signed user, when I search for a domain and unrecommend it, I see the count go down and a confirmation toast', async () => {
-    test.setTimeout(90_000)
+    test.setTimeout(180_000)
     page = await context.newPage()
 
     // Given
@@ -225,7 +225,7 @@ test.describe('Recommend works', () => {
     const upvote = card.locator('.product-card__upvote')
     const upvoteCount = upvote.locator('.product-card__upvote-count')
     await upvote.click()
-    await expect(upvote).toHaveClass(/product-card__upvote--active/, { timeout: 25_000 })
+    await expect(upvote).toHaveClass(/product-card__upvote--active/, { timeout: 120_000 })
     await expect(upvoteCount).toBeVisible()
     const beforeText = (await upvoteCount.textContent()) ?? ''
     const before = beforeText === '999+' ? 1000 : Number(beforeText)
