@@ -319,16 +319,25 @@ test.describe('Recommendation fails', () => {
 
     // Given
     await navigateToTestHost(page, identityHost.url)
-    // The app gives the identity lookup behind "you recommended this" 3s and
-    // caches it when it lands later. The first sync starts it, so search after
-    // that sync settles and the result carries the identity.
-    const frame = await getProductFrame(page, '.product-card')
-    await expect(frame.locator('.loading-dots')).not.toBeVisible({ timeout: 30_000 })
-    await frame.locator('.search-bar__input').fill('calculator')
+    const frame = await getProductFrame(page, '.search-bar__input')
+    const search = frame.locator('.search-bar__input')
     const card = frame.locator('.product-card[data-label="calculator"]')
-    await expect(card).toBeVisible({ timeout: 15_000 })
     const upvote = card.locator('.product-card__upvote')
-    await expect(upvote).toHaveClass(/product-card__upvote--active/, { timeout: 15_000 })
+    expect(
+      await frame.evaluate(() => window.__queryClient !== undefined),
+      'window.__queryClient is exposed only in dev builds'
+    ).toBe(true)
+    // "You recommended this" needs the identity, which the app waits 3s for and
+    // caches when it lands later. A search answered without it is cached for a
+    // minute, so drop that answer and search again until the identity shows.
+    await expect(async () => {
+      await frame.evaluate(() =>
+        window.__queryClient?.removeQueries({ queryKey: ['resolveLabel', 'calculator'] })
+      )
+      await search.fill('')
+      await search.fill('calculator')
+      await expect(upvote).toHaveClass(/product-card__upvote--active/, { timeout: 10_000 })
+    }).toPass({ timeout: 60_000 })
 
     // When
     await upvote.click()
