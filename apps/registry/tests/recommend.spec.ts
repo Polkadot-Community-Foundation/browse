@@ -314,12 +314,16 @@ test.describe('Recommendation fails', () => {
   })
 
   test('As a user with a second product account, when I un-recommend an app another account of my identity recommended, it is refused and nothing is signed', async () => {
-    test.setTimeout(40_000)
+    test.setTimeout(90_000)
     const page = await context.newPage()
 
     // Given
     await navigateToTestHost(page, identityHost.url)
-    const frame = await getProductFrame(page, '.search-bar__input')
+    // The app gives the identity lookup behind "you recommended this" 3s and
+    // caches it when it lands later. The first sync starts it, so search after
+    // that sync settles and the result carries the identity.
+    const frame = await getProductFrame(page, '.product-card')
+    await expect(frame.locator('.loading-dots')).not.toBeVisible({ timeout: 30_000 })
     await frame.locator('.search-bar__input').fill('calculator')
     const card = frame.locator('.product-card[data-label="calculator"]')
     await expect(card).toBeVisible({ timeout: 15_000 })
