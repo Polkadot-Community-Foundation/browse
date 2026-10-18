@@ -26,6 +26,27 @@ import { createRevokedAttestation } from './fixtures/revoke-attestation'
 import { getProductFrame, navigateToTestHost, startSignedHost } from './utils'
 
 /**
+ * Search for `label` and return its card once it shows.
+ *
+ * The search box has come back empty after a fill in some runs, so the label is
+ * typed again only then. A box that still holds the label fails on the card
+ * within the usual 15s.
+ */
+async function searchFor(frame: Frame, label: string): Promise<Locator> {
+  const input = frame.locator('.search-bar__input')
+  const card = frame.locator(`.product-card[data-label="${label}"]`)
+  for (let attempt = 1; ; attempt++) {
+    await input.fill(label)
+    try {
+      await expect(card).toBeVisible({ timeout: 15_000 })
+      return card
+    } catch (error) {
+      if (attempt >= 3 || (await input.inputValue()) === label) throw error
+    }
+  }
+}
+
+/**
  * The count a card shows once a sync in flight has stopped moving it. Reading it
  * mid-sync makes the recommendation look like it counted for nothing, and a
  * refresh that started before the write lands can still clobber it once, so the
@@ -156,9 +177,7 @@ test.describe('Recommend works', () => {
     // Given
     await navigateToTestHost(page, host.url)
     frame = await getProductFrame(page, '.search-bar__input')
-    await frame.locator('.search-bar__input').fill('alarm-clock')
-    const card = frame.locator('.product-card[data-label="alarm-clock"]')
-    await expect(card).toBeVisible({ timeout: 15_000 })
+    const card = await searchFor(frame, 'alarm-clock')
     const upvote = card.locator('.product-card__upvote')
     const upvoteCount = upvote.locator('.product-card__upvote-count')
     const hasCount = (await upvoteCount.count()) > 0
@@ -219,9 +238,7 @@ test.describe('Recommend works', () => {
     // Given
     await navigateToTestHost(page, host.url)
     frame = await getProductFrame(page, '.search-bar__input')
-    await frame.locator('.search-bar__input').fill('countdown-timer')
-    const card = frame.locator('.product-card[data-label="countdown-timer"]')
-    await expect(card).toBeVisible({ timeout: 15_000 })
+    const card = await searchFor(frame, 'countdown-timer')
     const upvote = card.locator('.product-card__upvote')
     const upvoteCount = upvote.locator('.product-card__upvote-count')
     await upvote.click()
