@@ -5,8 +5,9 @@
 import { member_from_entropy, one_shot, validate_with_commitment } from 'verifiablejs/nodejs'
 import { previewnethub, previewnetpeople } from '@polkadot-api/descriptors'
 import { mnemonicToEntropy } from '@polkadot-labs/hdkd-helpers'
+import { withCommonExtensions, withNonce } from '@polkadot-api/signers-common'
 import { Blake2256, Bytes, Vector } from '@polkadot-api/substrate-bindings'
-import { AccountId, createClient, Enum, type SS58String } from 'polkadot-api'
+import { AccountId, createClient, Enum, type SS58String, type TxCreator } from 'polkadot-api'
 import { getWsProvider } from 'polkadot-api/ws'
 import { WebSocket } from 'ws'
 
@@ -107,8 +108,8 @@ function buildGasContext(day: number, slotIndex: number): Uint8Array {
   return Blake2256(concatBytes(product, suffix))
 }
 
-// The AsPgas inherited implication excludes every extension at or after AsPgas
-// in the pipeline, plus AuthorizeCall and StorageWeightReclaim.
+// The AsPgas inherited implication excludes every extension up to and including
+// AsPgas in the pipeline, plus AuthorizeCall and StorageWeightReclaim.
 function buildImplicationExclude(pipelineOrder: string[]): Set<string> {
   const asPgasIdx = pipelineOrder.indexOf('AsPgas')
   if (asPgasIdx < 0) throw new Error('AsPgas not in the AH extension pipeline')
@@ -120,56 +121,62 @@ function buildImplicationExclude(pipelineOrder: string[]): Set<string> {
 }
 
 interface CapturedExtensions {
+  /** The transaction extension version the pipeline below belongs to. */
+  version: number
   order: string[]
   byIdentifier: Record<string, { value: Uint8Array; additionalSigned: Uint8Array }>
 }
 
-async function readExtensionOrder(metadata: Uint8Array): Promise<string[]> {
+/**
+ * The extension pipeline that carries AsPgas, and its version.
+ *
+ * Asset Hub publishes one pipeline per transaction extension version, and only a
+ * non-zero version carries AsPgas.
+ */
+async function readAsPgasPipeline(
+  metadata: Uint8Array
+): Promise<{ version: number; order: string[] }> {
   const { decAnyMetadata, unifyMetadata } = await import('@polkadot-api/substrate-bindings')
-  const meta = unifyMetadata(decAnyMetadata(metadata))
-  const raw = meta.extrinsic.signedExtensions as unknown
-  if (typeof raw === 'object' && raw !== null && Array.isArray((raw as { 0?: unknown })[0])) {
-    return (raw as { 0: Array<{ identifier: string }> })[0].map((x) => x.identifier)
-  }
-  if (Array.isArray(raw)) return (raw as Array<{ identifier: string }>).map((x) => x.identifier)
-  throw new Error('unrecognised signedExtensions shape')
+  const pipelines = unifyMetadata(decAnyMetadata(metadata)).extrinsic.extensionsByVersion
+  const carrying = Object.entries(pipelines).find(([, list]) =>
+    list.some((extension) => extension.identifier === 'AsPgas')
+  )
+  if (!carrying) throw new Error('AsPgas not in the AH extension pipeline')
+  const [version, list] = carrying
+  return { version: Number(version), order: list.map((extension) => extension.identifier) }
 }
 
-// Sign once with a sentinel signer that captures the extension bytes, then
-// aborts the papi signing flow before it actually signs.
+// Create once through a sentinel creator that captures the extension bytes the
+// common enhancers fill in, then aborts the papi flow before anything is signed.
+// The enhancers fill the inactive value of every extension that only the AsPgas
+// pipeline carries, except VerifyMultiSignature, whose Disabled variant has to
+// be named.
 async function capturePass(
-  innerTx: { sign: (signer: unknown, options: unknown) => Promise<string> },
+  innerTx: { create: (creator: TxCreator, options: unknown) => Promise<Uint8Array> },
   asPgasValue: unknown
 ): Promise<CapturedExtensions> {
   let captured: CapturedExtensions | null = null
   const sentinel = new Error('__capture_sentinel__')
-  const signer = {
-    publicKey: new Uint8Array(32),
-    signTx: async (
-      _callData: Uint8Array,
-      signedExtensions: Record<
-        string,
-        { identifier: string; value: Uint8Array; additionalSigned: Uint8Array }
-      >,
-      metadata: Uint8Array
-    ) => {
-      const order = await readExtensionOrder(metadata)
-      const byIdentifier: CapturedExtensions['byIdentifier'] = {}
-      for (const id of order) {
-        const ext = signedExtensions[id]
-        if (!ext) throw new Error(`missing extension '${id}'`)
-        byIdentifier[id] = { value: ext.value, additionalSigned: ext.additionalSigned }
+  const capture: TxCreator = async (payload) => {
+    const { version, order } = await readAsPgasPipeline(hexToBytes(payload.context.metadata))
+    const byIdentifier: CapturedExtensions['byIdentifier'] = {}
+    for (const id of order) {
+      const ext = payload.extensions.find((e) => e.id === id)
+      if (!ext) throw new Error(`missing extension '${id}'`)
+      byIdentifier[id] = {
+        value: hexToBytes(ext.extra),
+        additionalSigned: hexToBytes(ext.additionalSigned)
       }
-      captured = { order, byIdentifier }
-      throw sentinel
-    },
-    signBytes: async () => new Uint8Array(64)
+    }
+    captured = { version, order, byIdentifier }
+    throw sentinel
   }
   try {
-    await innerTx.sign(signer, {
+    await innerTx.create(withNonce(new Uint8Array(32))(withCommonExtensions(capture)), {
       mortality: { mortal: false },
       customSignedExtensions: {
-        AsPgas: { value: asPgasValue, additionalSigned: new Uint8Array() }
+        AsPgas: { value: asPgasValue, additionalSigned: new Uint8Array() },
+        VerifyMultiSignature: { value: Enum('Disabled') }
       }
     })
   } catch (e) {
@@ -188,14 +195,16 @@ function buildImplication(callBytes: Uint8Array, ext: CapturedExtensions, exclud
     restExplicit.push(e.value)
     restImplicit.push(e.additionalSigned)
   }
-  return Blake2256(concatBytes(new Uint8Array([0]), callBytes, ...restExplicit, ...restImplicit))
+  return Blake2256(
+    concatBytes(Uint8Array.of(ext.version), callBytes, ...restExplicit, ...restImplicit)
+  )
 }
 
 function buildV5General(callBytes: Uint8Array, ext: CapturedExtensions): Uint8Array {
   const allExplicit = ext.order.map((id) => ext.byIdentifier[id].value)
   const body = concatBytes(
     new Uint8Array([0x45]),
-    new Uint8Array([0x00]),
+    Uint8Array.of(ext.version),
     ...allExplicit,
     callBytes
   )
@@ -272,7 +281,7 @@ export async function claimPgas(target: string, slotIndex = 0): Promise<ClaimRes
     const callBytes = toBytes(await inner.getEncodedData())
 
     const signable = inner as unknown as {
-      sign: (signer: unknown, options: unknown) => Promise<string>
+      create: (creator: TxCreator, options: unknown) => Promise<Uint8Array>
     }
     const passEmpty = await capturePass(signable, undefined)
     const exclude = buildImplicationExclude(passEmpty.order)
@@ -298,7 +307,7 @@ export async function claimPgas(target: string, slotIndex = 0): Promise<ClaimRes
       ahClient.submitAndWatch(extrinsicBytes).subscribe({
         next: (ev) => {
           if (settled) return
-          if ((ev.type === 'txBestBlocksState' && ev.found) || ev.type === 'finalized') {
+          if (ev.type === 'inBestBlock' || ev.type === 'finalized') {
             settled = true
             if (ev.ok === false)
               reject(new Error(`claim_pgas failed: ${JSON.stringify(ev.dispatchError)}`))
