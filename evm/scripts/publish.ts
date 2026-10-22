@@ -21,7 +21,7 @@
  *     rejected by the precompile with no explanation.
  *   - the proof is built with `verifiablejs`, which is not a dependency here, so
  *     it comes in through the environment. Run
- *     `app/scripts/build-publish-proof.ts` to produce it, or read the recipe in
+ *     `apps/registry/scripts/build-publish-proof.ts` to produce it, or read the recipe in
  *     `docs/publishing-registry.md`.
  *
  * ```sh
@@ -222,11 +222,20 @@ async function main() {
     }
     console.log(`\n✅ Published ${label}.${config.TLD}`);
   } finally {
-    client.destroy();
+    // Teardown throws when a chain-head read is still in flight. The work is
+    // done by then.
+    try {
+      client.destroy();
+    } catch {
+      // ignore
+    }
   }
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+main().then(
+  () => process.exit(0),
+  (err) => {
+    console.error(err);
+    process.exit(1);
+  },
+);

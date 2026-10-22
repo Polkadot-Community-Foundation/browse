@@ -14,6 +14,7 @@
 // limitations under the License.
 
 export { BrowseSdk, createBrowseSdk } from './sdk.js'
+export type { Recommendation } from './sdk.js'
 
 export {
   activeAttestationResolver,
@@ -49,10 +50,12 @@ export {
   decodeString,
   decodeStringArray,
   decodeUint,
+  decodeUintArray,
   decodeUint64,
   encodeAggregate3,
   encodeAttestationLabel,
   encodeContenthash,
+  ATTESTATION_PAGE_LIMIT,
   encodeCountBySchema,
   encodeCountByRecipientAndSchema,
   encodeGetAttestationById,
@@ -64,6 +67,7 @@ export {
   encodeIsActive,
   encodeIsActiveAny,
   encodeLabelOf,
+  encodeListByRecipientAndSchema,
   encodeListBySchema,
   encodeNodeOwner,
   encodeOwner,
