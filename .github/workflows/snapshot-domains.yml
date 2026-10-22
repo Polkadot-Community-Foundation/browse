@@ -25,7 +25,7 @@ jobs:
             genesis: '0x4349b00e54897e21196fd331015fc5be0f14e118beb0375ed2bb1793737bb57a'
             cache-prefix: paseo-domains-snapshot-cid
           - name: Previewnet
-            genesis: '0xc27c8bf3f13f96dc2130cd2b0a3debe57618fd02521ecc1902bd7dd4ed83d2fe'
+            genesis: '0xbac97e23fc8f4bccae72a98f8aeb2bcab20bf755862304e4b46ad6473456e896'
             cache-prefix: previewnet-domains-snapshot-cid
     steps:
       - uses: actions/checkout@v4
@@ -35,12 +35,12 @@ jobs:
           bun-version: latest
 
       - name: Install dependencies
-        working-directory: app
+        working-directory: apps/registry
         run: bun install --frozen-lockfile
 
       - name: Publish snapshot
         id: snapshot
-        working-directory: app
+        working-directory: apps/registry
         env:
           MNEMONIC: ${{ secrets.MNEMONIC }}
           NETWORK_GENESIS_HASH: ${{ matrix.network.genesis }}
