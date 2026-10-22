@@ -30,6 +30,23 @@
       "genesisHash": "0x4349b00e54897e21196fd331015fc5be0f14e118beb0375ed2bb1793737bb57a",
       "substrateRpc": "wss://paseo-asset-hub-next-rpc.polkadot.io",
       "deployedAt": "2026-09-16"
+    },
+    "devnet": {
+      "address": "0x8d3CE7Bb2ED68C06306b4C1d5EEe79435AAE0A10",
+      "version": "3.1.0",
+      "owner": "0xF8d186c352e2ea0B9C02c211525A20DdcB8CD2dD",
+      "note": "Only entry in the SDK PUBLISHER array. Bound to the dotNS 1.0.0 registrar. The operator publishes any label, including names it does not hold, with no personhood proof and no rate limit. Replaces 2.1.0 at 0xaab42efbe8ea4d4228c3a11e973f94c17b9a0f2c, which is bound to the registrar from before dotNS 0.8.0 and cannot list newer names.",
+      "previousAddress": "0xaab42efbe8ea4d4228c3a11e973f94c17b9a0f2c",
+      "previousVersion": "2.1.0",
+      "tld": ".dot",
+      "tldNode": "0x3fce7d1364a893e213bc4212792b517ffc88f5b13b86c8ef9c8d390c3a1370ce",
+      "salt": "browse.create3.v1:Publisher:3.1.0",
+      "registrar": "0xc609e0c2DAB4433d55a32FB098Db8788C1956302",
+      "deployer": "5Fk8FBTqBpAyBReZPse2wn8Lf4ADzdNVAsrGoNMSTxKedN8f",
+      "network": "devnet",
+      "genesisHash": "0xd6eec26135305a8ad257a20d003357284c8aa03d0bdb2b357ab0a22371e11ef2",
+      "substrateRpc": "wss://asset-hub-paseo-rpc.n.dwellir.com",
+      "deployedAt": "2026-10-22"
     }
   },
   "trustedAttesterIndexResolver": {
