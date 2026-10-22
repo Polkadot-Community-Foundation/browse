@@ -133,8 +133,8 @@ export const KNOWN_NETWORKS = {
     TLD: 'dot',
     PUBLISHER: [
       {
-        version: '2.1.0',
-        address: '0xaab42efbe8ea4d4228c3a11e973f94c17b9a0f2c'
+        version: '3.1.0',
+        address: '0x8d3CE7Bb2ED68C06306b4C1d5EEe79435AAE0A10'
       }
     ],
     SCHEMA_REGISTRY: '0xf8fccb815aabb57fb0210c686a923406ac4ef99d',
