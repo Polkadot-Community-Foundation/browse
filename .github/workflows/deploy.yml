@@ -78,7 +78,7 @@ jobs:
               "env": "devnet",
               "display-name": "Products Devnet (public Paseo AH 1000)",
               "genesis": "0xd6eec26135305a8ad257a20d003357284c8aa03d0bdb2b357ab0a22371e11ef2",
-              "truapi": "0.13",
+              "truapi": "0.25",
               "tld": "dot",
               "deployment-env": "devnet",
               "reuse-artifact": false,
