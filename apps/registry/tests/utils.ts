@@ -4,6 +4,7 @@ import {
   PASEONEXTV2_ASSETHUB_GENESIS,
   PREVIEWNET_ASSETHUB_GENESIS
 } from '@parity/browse-sdk'
+import { asProductId } from '@parity/product-sdk/host'
 import type {
   DevAccount,
   DevAccountName,
@@ -121,14 +122,6 @@ function activePeopleChain(): NetworkConfig {
 
 export { APP_URL, PORT }
 
-// Stops compiling once the test host server takes `networks`, the release that
-// closes paritytech/trinity-user-agents#1388. Then drop every workaround for it:
-// - fromNetworks in startHost here, startHost in apps/portal/tests/utils.ts and
-//   scripts/mock-host.ts
-// - the remount after seedIconPreimage in app-start.spec.ts
-// - the seeding in fixtures/host-storage.ts
-true satisfies 'networks' extends keyof TestHostServerOptions ? never : true
-
 /**
  * Start a test host for the active network.
  *
@@ -145,7 +138,7 @@ async function startHost(options: Partial<TestHostServerOptions>) {
   const { mock, runtimeConfig } = fromNetworks([activeNetwork(), activePeopleChain()])
   return createTestHostServer({
     productUrl: APP_URL,
-    productId: LOCALHOST_SELF_DOTNS,
+    productId: asProductId(LOCALHOST_SELF_DOTNS),
     mock,
     runtimeConfig: { ...runtimeConfig, networkSuffix: NETWORK.TLD },
     ...options

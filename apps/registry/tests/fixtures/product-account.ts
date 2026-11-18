@@ -6,6 +6,7 @@
  * real host mints PGAS into it on a SmartContractAllowance grant. The test host
  * grants the allowance but mints nothing, so the suite pays instead.
  */
+import { asProductId } from '@parity/product-sdk/host'
 import { productAccountAddress, type DevAccount } from '@parity/truapi-host/testing/playwright'
 
 import { LOCALHOST_SELF_DOTNS } from '../../src/lib/config'
@@ -28,7 +29,10 @@ export async function fundProductAccount(
   account: DevAccount,
   pgas: bigint = DEFAULT_PRODUCT_PGAS
 ): Promise<string> {
-  const address = await productAccountAddress({ account, productId: LOCALHOST_SELF_DOTNS })
+  const address = await productAccountAddress({
+    account,
+    productId: asProductId(LOCALHOST_SELF_DOTNS)
+  })
   await fundWithNative(address)
   await fundWithPgas(address, pgas)
   return address
